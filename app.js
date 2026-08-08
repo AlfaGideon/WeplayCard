@@ -24,7 +24,7 @@
     const MAX_HERO = 2, MAX_TABLE = 5;
     const comboPctEls = {}; const comboBarEls = {}; const comboItemEls = {};
     let lastWinChance = null, lastHist = null, lastTotal = 0, lastComputing = false;
-    let lastExact = false, lastExactDeals = 0, lastExactNotice = '';
+    let lastExact = false, lastExactDeals = 0, lastExactNotice = '', lastConfidence95 = null;
 
     // --- Карточка (.pcard) ---------------------------------------------------
     function pcardEl(card, asButton) {
@@ -177,6 +177,11 @@
           exact.textContent = ' · точно';
           exact.title = 'Полный перебор всех ' + lastExactDeals.toLocaleString('ru') + ' вариантов закрытых карт соперников, включая пары 5+6.';
           eqEl.appendChild(exact);
+        } else if (lastConfidence95 != null) {
+          const estimate = document.createElement('span'); estimate.className = 'cn-freq muted';
+          estimate.textContent = ' · оценка ±' + (lastConfidence95 * 100).toFixed(1) + '%';
+          estimate.title = 'Статистическая оценка по 30 000 случайных раздач (95% доверительный интервал).';
+          eqEl.appendChild(estimate);
         }
         if (lastWinChance >= 0.66) eqEl.style.color = '#74f0a8';
         else if (lastWinChance >= 0.5) eqEl.style.color = '#9ec0ff';
@@ -228,6 +233,19 @@
       $('topVal').textContent = txt;
     }
 
+    function setCalcStatus(exact, confidence95) {
+      const status = $('calcStatus'), text = $('calcStatusText');
+      if (!status || !text) return;
+      status.classList.toggle('estimate', !exact);
+      if (exact) {
+        text.textContent = 'Точный перебор';
+        status.title = 'Все допустимые расклады перебраны полностью.';
+      } else {
+        text.textContent = 'Оценка · ±' + (confidence95 * 100).toFixed(1) + '%';
+        status.title = 'Статистическая оценка по 30 000 случайных раздач. Указан 95% доверительный интервал.';
+      }
+    }
+
     function clearOutcomeDisplay() {
       const summary = $('outcomeBreakdown');
       if (summary) summary.hidden = true;
@@ -245,9 +263,11 @@
     function resetLiveResult() {
       lastWinChance = null;
       lastHist = null; lastTotal = 0;
-      lastExact = false; lastExactDeals = 0; lastExactNotice = '';
+      lastExact = false; lastExactDeals = 0; lastExactNotice = ''; lastConfidence95 = null;
       updateComboPcts(null, 0);
       clearOutcomeDisplay();
+      const callMath = $('callMath'); if (callMath) callMath.hidden = true;
+      setCalcStatus(true);
     }
 
     function scheduleRecompute() {
@@ -278,15 +298,54 @@
       }
     }
 
+    function callInputs() {
+      const potRaw = $('potInput').value, betRaw = $('betInput').value;
+      const pot = Number(potRaw), bet = Number(betRaw);
+      return {
+        pot: potRaw !== '' && isFinite(pot) && pot >= 0 ? pot : null,
+        bet: betRaw !== '' && isFinite(bet) && bet > 0 ? bet : null,
+      };
+    }
+
+    function formatChips(value) {
+      const abs = Math.abs(value);
+      const digits = abs >= 100 ? 0 : (abs >= 10 ? 1 : 2);
+      return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(abs);
+    }
+
+    // Показывает не только вердикт, но и границу окупаемости с ожидаемым
+    // результатом. Так игрок видит, насколько решение устойчиво к ошибке в %.
+    function renderCallMath(winChance) {
+      const panel = $('callMath');
+      if (!panel) return;
+      const input = callInputs();
+      const math = input.pot != null && input.bet != null && typeof E.analyzeCall === 'function'
+        ? E.analyzeCall(winChance, input.bet, input.pot) : null;
+      panel.hidden = !math;
+      if (!math) return;
+
+      const edgePp = math.equityEdge * 100;
+      const ev = math.expectedValue;
+      $('callNeed').textContent = (math.requiredEquity * 100).toFixed(1) + '%';
+      $('callEdge').textContent = (edgePp >= 0 ? '+' : '−') + Math.abs(edgePp).toFixed(1) + ' п.п.';
+      $('callEv').textContent = (ev >= 0 ? '+' : '−') + formatChips(ev);
+      $('callEdge').className = edgePp >= 0 ? 'positive' : 'negative';
+      $('callEv').className = ev >= 0 ? 'positive' : 'negative';
+      $('callMathNote').textContent = ev >= 0
+        ? 'Колл выгоден в среднем: при банке ' + formatChips(input.pot) + ' и колле ' + formatChips(input.bet) + ' его EV положительный.'
+        : 'Колл убыточен в среднем: для нулевого EV нужно минимум ' + (math.requiredEquity * 100).toFixed(1) + '%.';
+    }
+
     function updateRecommendation(winChance) {
-      const pot = Number($('potInput').value), bet = Number($('betInput').value);
+      const input = callInputs();
       // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
       const rec = E.recommend(winChance,
-        isFinite(bet) && bet > 0 ? bet : undefined,
-        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
+        input.bet != null ? input.bet : undefined,
+        input.pot != null ? input.pot : undefined);
       const chip = $('recoChip');
       chip.className = 'reco-chip ' + rec.cls;
       chip.textContent = rec.emoji + ' ' + rec.text;
+      renderCallMath(winChance);
     }
 
     function finishLiveResult(result) {
@@ -297,6 +356,8 @@
       lastTotal = outcomes;
       lastExact = !!result.exact;
       lastExactDeals = result.exact ? outcomes : 0;
+      lastConfidence95 = result.exact ? null : result.confidence95;
+      setCalcStatus(lastExact, lastConfidence95);
       lastComputing = false;
       updateComboPcts(result.levelHist, outcomes);
       setWinChanceDisplay(winChance, false);
@@ -348,6 +409,22 @@
         finishLiveResult(exact);
       } catch (err) {
         if (myGen !== runGen) return;
+        if (err && err.code === 'EXACT_TOO_LARGE' && typeof E.simulateEstimate === 'function') {
+          // Префлоп и ранние улицы слишком велики для полного перебора. Вместо
+          // пустого результата даём явно помеченную оценку с погрешностью.
+          await new Promise(res => setTimeout(res, 0));
+          if (myGen !== runGen) return;
+          const estimate = E.simulateEstimate({
+            heroHole: state.hero,
+            community: state.table,
+            numOpponents: state.opponents,
+            samples: 30000,
+          });
+          if (myGen !== runGen) return;
+          $('segBar').hidden = false;
+          finishLiveResult(estimate);
+          return;
+        }
         if (err && err.code === 'EXACT_TOO_LARGE') {
           showExactLimit(err);
           return;
@@ -472,7 +549,11 @@
           if (e.key === 'ArrowDown') { e.preventDefault(); stepInput(input, -1); }
         });
       });
-      ['potInput', 'betInput'].forEach(id => on(id, 'input', scheduleRecompute));
+      // Банк и колл не меняют карты, поэтому пересчитывать миллионы раскладов
+      // не нужно: мгновенно обновляем только решение и EV.
+      ['potInput', 'betInput'].forEach(id => on(id, 'input', () => {
+        if (lastWinChance != null) updateRecommendation(lastWinChance);
+      }));
     }
     initNumberSteppers();
 

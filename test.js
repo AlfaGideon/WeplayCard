@@ -117,5 +117,29 @@ check('40% шанса при колле 10 в банк 100 -> колл по по
 const potOddsFold = E.recommend(0.05, 10, 100);
 check('5% шанса при колле 10 в банк 100 -> пас по пот-оддсам', potOddsFold.cls === 'fold');
 
+// Решение должно показывать не только вердикт, но и денежную цену ошибки.
+const callMathGood = E.analyzeCall(0.40, 10, 100);
+check('анализ колла: порог 10/110 = 9.09%',
+  Math.abs(callMathGood.requiredEquity - 10 / 110) < 1e-12);
+check('анализ колла: 40% в банк 100 за 10 даёт EV +34',
+  Math.abs(callMathGood.expectedValue - 34) < 1e-12 && callMathGood.equityEdge > 0);
+const callMathBad = E.analyzeCall(0.05, 10, 100);
+check('анализ колла: 5% в банк 100 за 10 даёт отрицательный EV',
+  Math.abs(callMathBad.expectedValue + 4.5) < 1e-12 && callMathBad.equityEdge < 0);
+check('анализ колла отклоняет неполные или некорректные данные',
+  E.analyzeCall(0.5, 0, 100) === null && E.analyzeCall(1.1, 10, 100) === null);
+
+// На префлопе точный перебор слишком велик, поэтому доступна честно помеченная
+// оценка. Фиксированный генератор делает проверку воспроизводимой.
+let estimateSeed = 987654321;
+function estimateRng() { estimateSeed = (estimateSeed * 1664525 + 1013904223) >>> 0; return estimateSeed / 4294967296; }
+const preflopEstimate = E.simulateEstimate({ heroHole: finalHero, community: [], numOpponents: 1, samples: 3000, rng: estimateRng });
+check('префлоп: оценка возвращает заданное число раздач и 95% погрешность',
+  preflopEstimate.exact === false && preflopEstimate.outcomes === 3000 &&
+  preflopEstimate.win + preflopEstimate.tie + preflopEstimate.lose === 3000 &&
+  preflopEstimate.confidence95 >= 0 && preflopEstimate.confidence95 < 0.05);
+check('префлоп: оценка выдаёт допустимый шанс победы',
+  preflopEstimate.winChance >= 0 && preflopEstimate.winChance <= 1);
+
 console.log(`\nИтого: ${pass} прошло, ${fail} упало.`);
 process.exit(fail ? 1 : 0);

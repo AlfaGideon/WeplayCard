@@ -546,6 +546,91 @@
     };
   }
 
+  // --- Математика колла ------------------------------------------------------
+  // Банк указан ДО колла, betToCall — цена решения. winChance уже учитывает
+  // случайную дуэль при равной комбинации, поэтому это честная вероятность
+  // забрать банк единолично. EV показывает результат нового решения, без
+  // ранее вложенных фишек: выигрыш = банк, проигрыш = цена колла.
+  function analyzeCall(winChance, betToCall, pot) {
+    if (typeof winChance !== 'number' || !isFinite(winChance) || winChance < 0 || winChance > 1 ||
+        typeof betToCall !== 'number' || !isFinite(betToCall) || betToCall <= 0 ||
+        typeof pot !== 'number' || !isFinite(pot) || pot < 0) return null;
+    const requiredEquity = betToCall / (pot + betToCall);
+    const expectedValue = winChance * (pot + betToCall) - betToCall;
+    return {
+      requiredEquity,
+      expectedValue,
+      equityEdge: winChance - requiredEquity,
+      finalPot: pot + betToCall,
+    };
+  }
+
+  // --- Быстрая оценка для ранней стадии -------------------------------------
+  // До флопа полное пространство раздач слишком велико. Вместо отсутствующего
+  // ответа используем честную случайную выборку и возвращаем её погрешность.
+  // После флопа интерфейс по-прежнему предпочитает полный точный перебор.
+  function simulateEstimate(opts) {
+    opts = opts || {};
+    const heroHole = opts.heroHole || [];
+    const community = opts.community || [];
+    const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
+    const samples = Number.isInteger(opts.samples) ? opts.samples : 30000;
+    const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
+    if (heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
+    if (community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
+    if (opponents < 1 || opponents > 3) throw new Error('Оценка доступна для 1–3 соперников');
+    if (samples < 1000) throw new Error('Для оценки нужно минимум 1 000 раздач');
+
+    const usedCards = heroHole.concat(community);
+    const used = new Set(usedCards.map(cardKey));
+    if (used.size !== usedCards.length) throw new Error('Одна и та же известная карта указана дважды');
+    const unknown = buildDeck().filter(c => !used.has(cardKey(c)));
+    const boardToDraw = 5 - community.length;
+    let win = 0, tie = 0, lose = 0, equitySum = 0, equitySquares = 0;
+    const levelHist = {};
+
+    // Частичный Fisher–Yates: берём только нужные карты, не создавая колоду
+    // заново на каждую раздачу.
+    const pool = unknown.slice();
+    const drawCount = boardToDraw + opponents * 2;
+    for (let n = 0; n < samples; n++) {
+      for (let i = 0; i < drawCount; i++) {
+        const j = i + Math.floor(rng() * (pool.length - i));
+        const swap = pool[i]; pool[i] = pool[j]; pool[j] = swap;
+      }
+      const board = community.concat(pool.slice(0, boardToDraw));
+      const heroScore = scoreHand(heroHole.concat(board));
+      let bestScore = heroScore, equalBest = 1, heroBest = true;
+      for (let o = 0; o < opponents; o++) {
+        const at = boardToDraw + o * 2;
+        const oppScore = scoreHand([pool[at], pool[at + 1]].concat(board));
+        const cmp = compareScore(oppScore, bestScore);
+        if (cmp > 0) { bestScore = oppScore; equalBest = 1; heroBest = false; }
+        else if (cmp === 0) { equalBest++; }
+      }
+      let equity = 0;
+      if (heroBest) {
+        if (equalBest === 1) { win++; equity = 1; }
+        else { tie++; equity = 1 / equalBest; }
+      } else lose++;
+      equitySum += equity;
+      equitySquares += equity * equity;
+      levelHist[heroScore[0]] = (levelHist[heroScore[0]] || 0) + 1;
+      // Возвращать pool в исходный порядок не нужно: частичный Fisher–Yates
+      // остаётся равномерным при любом исходном порядке массива.
+    }
+    const winChance = equitySum / samples;
+    const variance = Math.max(0, equitySquares / samples - winChance * winChance);
+    return {
+      outcomes: samples, samples, exact: false, method: 'estimate',
+      win, tie, lose, winPct: win / samples, tiePct: tie / samples, losePct: lose / samples,
+      winChance, equity: winChance,
+      // Нормальное приближение 95% доверительного интервала для средней equity.
+      confidence95: 1.96 * Math.sqrt(variance / samples),
+      levelHist,
+    };
+  }
+
   // --- Рекомендация по ставке -----------------------------------------------
   // winChance — шанс стать единственным победителем (0..1). betToCall — сумма
   // колла, pot — банк до колла. Возвращает текст и класс для подсветки.
@@ -572,6 +657,6 @@
   return {
     COLORS, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
-    evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, recommend,
+    evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, simulateEstimate, analyzeCall, recommend,
   };
 });

@@ -188,6 +188,8 @@ body {
 .players-note { color: #aeb8cf; font-size: 10px; line-height: 1.2; white-space: nowrap; }
 .exact-status { display: inline-flex; align-items: center; gap: 5px; align-self: center; color: #8df0ba; font-size: 10px; font-weight: 750; white-space: nowrap; padding: 4px 8px; border: 1px solid rgba(34,197,94,0.28); border-radius: 999px; background: rgba(34,197,94,0.07); }
 .exact-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.85); }
+.exact-status.estimate { color: #ffcf8a; border-color: rgba(245,158,11,.34); background: rgba(245,158,11,.08); }
+.exact-status.estimate .exact-status-dot { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,.8); }
 .stepper { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
 .stepper-btn { border: none; background: transparent; color: var(--muted); min-width: 34px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all .15s; }
 .stepper-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
@@ -251,6 +253,24 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .num-group { gap: 8px; }
 }
 
+/* Пот-оддсы в действии: порог, запас и EV решения о колле */
+.call-math {
+  display: grid; grid-template-columns: minmax(150px, 1.35fr) repeat(3, minmax(110px, 1fr));
+  gap: 10px; align-items: stretch; margin: 10px 0 4px; padding: 11px 14px;
+  background: linear-gradient(100deg, rgba(79,139,255,.12), rgba(45,212,167,.07));
+  border: 1px solid rgba(111,157,255,.28); border-radius: var(--radius);
+}
+.call-math[hidden] { display: none; }
+.call-math-heading { display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.call-math-kicker { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: #cbd9ff; }
+.call-math-caption, .call-math-stat span, .call-math-note { font-size: 10px; color: var(--muted); }
+.call-math-stat { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,.10); }
+.call-math-stat b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.call-math-ev b { font-size: 19px; }
+.call-math .positive { color: #74f0a8; }
+.call-math .negative { color: #ff9aa9; }
+.call-math-note { grid-column: 1 / -1; margin: -1px 0 0; line-height: 1.35; }
+
 .hint { font-size: 11px; color: var(--muted); margin: 4px 0 7px; }
 
 /* Колода — гибкая сетка 9 колонок: карты подстраиваются под ширину, скроллбара нет */
@@ -302,6 +322,9 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .hand-right { align-items: flex-start; border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 12px; }
   .equity-readout { text-align: left; }
   .outcome-breakdown { justify-content: flex-start; flex-wrap: wrap; }
+  .call-math { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .call-math-heading { grid-column: 1 / -1; }
+  .call-math-stat { padding: 8px 0 0; border-left: none; border-top: 1px solid rgba(255,255,255,.10); }
   .workspace { padding: 16px 14px 32px; }
   .deck { gap: 6px; max-width: 100%; }
   .hand-cards .pcard { width: 48px; height: 66px; }
