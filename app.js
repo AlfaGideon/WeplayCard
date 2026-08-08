@@ -24,7 +24,7 @@
     const MAX_HERO = 2, MAX_TABLE = 5;
     const comboPctEls = {}; const comboBarEls = {}; const comboItemEls = {};
     let lastWinChance = null, lastHist = null, lastTotal = 0, lastComputing = false;
-    let lastExact = false, lastExactDeals = 0, lastExactNotice = '';
+    let lastExact = false, lastExactDeals = 0, lastExactNotice = '', lastConfidence95 = null;
 
     // --- Карточка (.pcard) ---------------------------------------------------
     function pcardEl(card, asButton) {
@@ -177,6 +177,11 @@
           exact.textContent = ' · точно';
           exact.title = 'Полный перебор всех ' + lastExactDeals.toLocaleString('ru') + ' вариантов закрытых карт соперников, включая пары 5+6.';
           eqEl.appendChild(exact);
+        } else if (lastConfidence95 != null) {
+          const estimate = document.createElement('span'); estimate.className = 'cn-freq muted';
+          estimate.textContent = ' · оценка ±' + (lastConfidence95 * 100).toFixed(1) + '%';
+          estimate.title = 'Статистическая оценка по 30 000 случайных раздач (95% доверительный интервал).';
+          eqEl.appendChild(estimate);
         }
         if (lastWinChance >= 0.66) eqEl.style.color = '#74f0a8';
         else if (lastWinChance >= 0.5) eqEl.style.color = '#9ec0ff';
@@ -228,6 +233,19 @@
       $('topVal').textContent = txt;
     }
 
+    function setCalcStatus(exact, confidence95) {
+      const status = $('calcStatus'), text = $('calcStatusText');
+      if (!status || !text) return;
+      status.classList.toggle('estimate', !exact);
+      if (exact) {
+        text.textContent = 'Точный перебор';
+        status.title = 'Все допустимые расклады перебраны полностью.';
+      } else {
+        text.textContent = 'Оценка · ±' + (confidence95 * 100).toFixed(1) + '%';
+        status.title = 'Статистическая оценка по 30 000 случайных раздач. Указан 95% доверительный интервал.';
+      }
+    }
+
     function clearOutcomeDisplay() {
       const summary = $('outcomeBreakdown');
       if (summary) summary.hidden = true;
@@ -245,10 +263,11 @@
     function resetLiveResult() {
       lastWinChance = null;
       lastHist = null; lastTotal = 0;
-      lastExact = false; lastExactDeals = 0; lastExactNotice = '';
+      lastExact = false; lastExactDeals = 0; lastExactNotice = ''; lastConfidence95 = null;
       updateComboPcts(null, 0);
       clearOutcomeDisplay();
       const callMath = $('callMath'); if (callMath) callMath.hidden = true;
+      setCalcStatus(true);
     }
 
     function scheduleRecompute() {
@@ -337,6 +356,8 @@
       lastTotal = outcomes;
       lastExact = !!result.exact;
       lastExactDeals = result.exact ? outcomes : 0;
+      lastConfidence95 = result.exact ? null : result.confidence95;
+      setCalcStatus(lastExact, lastConfidence95);
       lastComputing = false;
       updateComboPcts(result.levelHist, outcomes);
       setWinChanceDisplay(winChance, false);
@@ -388,6 +409,22 @@
         finishLiveResult(exact);
       } catch (err) {
         if (myGen !== runGen) return;
+        if (err && err.code === 'EXACT_TOO_LARGE' && typeof E.simulateEstimate === 'function') {
+          // Префлоп и ранние улицы слишком велики для полного перебора. Вместо
+          // пустого результата даём явно помеченную оценку с погрешностью.
+          await new Promise(res => setTimeout(res, 0));
+          if (myGen !== runGen) return;
+          const estimate = E.simulateEstimate({
+            heroHole: state.hero,
+            community: state.table,
+            numOpponents: state.opponents,
+            samples: 30000,
+          });
+          if (myGen !== runGen) return;
+          $('segBar').hidden = false;
+          finishLiveResult(estimate);
+          return;
+        }
         if (err && err.code === 'EXACT_TOO_LARGE') {
           showExactLimit(err);
           return;

@@ -188,6 +188,8 @@ body {
 .players-note { color: #aeb8cf; font-size: 10px; line-height: 1.2; white-space: nowrap; }
 .exact-status { display: inline-flex; align-items: center; gap: 5px; align-self: center; color: #8df0ba; font-size: 10px; font-weight: 750; white-space: nowrap; padding: 4px 8px; border: 1px solid rgba(34,197,94,0.28); border-radius: 999px; background: rgba(34,197,94,0.07); }
 .exact-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.85); }
+.exact-status.estimate { color: #ffcf8a; border-color: rgba(245,158,11,.34); background: rgba(245,158,11,.08); }
+.exact-status.estimate .exact-status-dot { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,.8); }
 .stepper { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
 .stepper-btn { border: none; background: transparent; color: var(--muted); min-width: 34px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all .15s; }
 .stepper-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }

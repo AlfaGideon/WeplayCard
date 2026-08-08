@@ -129,5 +129,17 @@ check('анализ колла: 5% в банк 100 за 10 даёт отрица
 check('анализ колла отклоняет неполные или некорректные данные',
   E.analyzeCall(0.5, 0, 100) === null && E.analyzeCall(1.1, 10, 100) === null);
 
+// На префлопе точный перебор слишком велик, поэтому доступна честно помеченная
+// оценка. Фиксированный генератор делает проверку воспроизводимой.
+let estimateSeed = 987654321;
+function estimateRng() { estimateSeed = (estimateSeed * 1664525 + 1013904223) >>> 0; return estimateSeed / 4294967296; }
+const preflopEstimate = E.simulateEstimate({ heroHole: finalHero, community: [], numOpponents: 1, samples: 3000, rng: estimateRng });
+check('префлоп: оценка возвращает заданное число раздач и 95% погрешность',
+  preflopEstimate.exact === false && preflopEstimate.outcomes === 3000 &&
+  preflopEstimate.win + preflopEstimate.tie + preflopEstimate.lose === 3000 &&
+  preflopEstimate.confidence95 >= 0 && preflopEstimate.confidence95 < 0.05);
+check('префлоп: оценка выдаёт допустимый шанс победы',
+  preflopEstimate.winChance >= 0 && preflopEstimate.winChance <= 1);
+
 console.log(`\nИтого: ${pass} прошло, ${fail} упало.`);
 process.exit(fail ? 1 : 0);
