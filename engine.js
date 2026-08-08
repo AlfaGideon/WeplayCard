@@ -234,6 +234,27 @@
     return best;
   }
 
+  // --- Сравнение результатов вскрытия ----------------------------------------
+  // Возвращает вероятность героя стать единственным победителем в уже
+  // определившемся раскладе. При равных лучших руках игра выбирает победителя
+  // случайной дуэлью, поэтому шанс героя равен 1/N среди N равных рук.
+  function resolveShowdown(heroScore, opponentScores) {
+    const scores = [heroScore].concat(opponentScores);
+    let bestScore = scores[0];
+    for (let i = 1; i < scores.length; i++) {
+      if (compareScore(scores[i], bestScore) > 0) bestScore = scores[i];
+    }
+    let tiedPlayers = 0;
+    for (const score of scores) {
+      if (compareScore(score, bestScore) === 0) tiedPlayers++;
+    }
+    const heroIsWinner = compareScore(heroScore, bestScore) === 0;
+
+    if (!heroIsWinner) return { result: 'lose', winChance: 0, tiedPlayers: 0 };
+    if (tiedPlayers === 1) return { result: 'win', winChance: 1, tiedPlayers: 1 };
+    return { result: 'tie', winChance: 1 / tiedPlayers, tiedPlayers };
+  }
+
   // --- Один розыгрыш (Монте-Карло) ------------------------------------------
   // Добирает недостающие общие карты и руки соперников из оставшейся колоды,
   // сводит в показдаун и сравнивает. В «Дуэли лжи» банк не делится:
@@ -262,34 +283,14 @@
     const fullCommunity = community.concat(drawn);
 
     const heroScore = bestHand(heroHole.concat(fullCommunity)).score;
-    const scores = [heroScore];
+    const opponentScores = [];
     for (let i = 0; i < opponents; i++) {
       const oppHole = remaining.slice(p, p + 2); p += 2;
-      scores.push(bestHand(oppHole.concat(fullCommunity)).score);
+      opponentScores.push(bestHand(oppHole.concat(fullCommunity)).score);
     }
 
-    let bestScore = scores[0];
-    for (let i = 1; i < scores.length; i++) {
-      if (compareScore(scores[i], bestScore) > 0) bestScore = scores[i];
-    }
-    const winners = scores.filter(score => compareScore(score, bestScore) === 0);
-    const heroIsWinner = compareScore(heroScore, bestScore) === 0;
-    const tiedPlayers = heroIsWinner ? winners.length : 0;
-
-    let result, winChance;
-    if (!heroIsWinner) {
-      result = 'lose';
-      winChance = 0;
-    } else if (tiedPlayers === 1) {
-      result = 'win';
-      winChance = 1;
-    } else {
-      // Это не делёж: удача в игре выбирает одного победителя из равных рук.
-      result = 'tie';
-      winChance = 1 / tiedPlayers;
-    }
-
-    return { result, winChance, tiedPlayers, heroLevel: heroScore[0], heroScore };
+    const outcome = resolveShowdown(heroScore, opponentScores);
+    return Object.assign(outcome, { heroLevel: heroScore[0], heroScore });
   }
 
   // --- Полная симуляция (синхронно) -----------------------------------------
@@ -331,6 +332,80 @@
     };
   }
 
+  // --- Точный расчёт на готовом столе ---------------------------------------
+  // Когда все 5 общих карт известны, нет причин вносить погрешность Монте-Карло.
+  // Для одного/двух соперников перебираем все допустимые пары их закрытых карт.
+  // При трёх соперниках вариантов слишком много для мгновенного браузерного
+  // расчёта, поэтому вызывающий код продолжает использовать simulate().
+  function simulateExact(opts) {
+    opts = opts || {};
+    const heroHole = opts.heroHole || [];
+    const community = opts.community || [];
+    const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
+    if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
+    if (!community || community.length !== 5) throw new Error('Для точного расчёта нужны все 5 общих карт');
+    if (opponents < 1 || opponents > 2) throw new Error('Точный расчёт доступен для 1 или 2 соперников');
+
+    const usedCards = heroHole.concat(community);
+    const used = new Set(usedCards.map(cardKey));
+    if (used.size !== usedCards.length) throw new Error('Одна и та же известная карта указана дважды');
+    const remaining = buildDeck().filter(c => !used.has(cardKey(c)));
+    const heroScore = bestHand(heroHole.concat(community)).score;
+
+    // Оцениваем каждую возможную пару соперника ровно один раз. На готовом
+    // столе её сила не меняется, так что вложенный перебор делает только
+    // сравнения счёта, а не десятки тысяч повторных bestHand().
+    const pairs = [];
+    for (let a = 0; a < remaining.length; a++) {
+      for (let b = a + 1; b < remaining.length; b++) {
+        pairs.push({ a, b, score: bestHand([remaining[a], remaining[b]].concat(community)).score });
+      }
+    }
+
+    let win = 0, tie = 0, lose = 0, winChanceTotal = 0, total = 0;
+    const levelWins = {};
+    function tally(outcome) {
+      total++;
+      if (outcome.result === 'win') {
+        win++;
+        levelWins[heroScore[0]] = (levelWins[heroScore[0]] || 0) + 1;
+      } else if (outcome.result === 'tie') {
+        tie++;
+      } else {
+        lose++;
+      }
+      winChanceTotal += outcome.winChance;
+    }
+
+    if (opponents === 1) {
+      for (const pair of pairs) tally(resolveShowdown(heroScore, [pair.score]));
+    } else {
+      // Пары принадлежат разным соперникам, поэтому не могут использовать одну
+      // и ту же карту. Порядок пар соответствует двум различимым соперникам.
+      for (const first of pairs) {
+        for (const second of pairs) {
+          if (first.a === second.a || first.a === second.b ||
+              first.b === second.a || first.b === second.b) continue;
+          tally(resolveShowdown(heroScore, [first.score, second.score]));
+        }
+      }
+    }
+
+    const winChance = winChanceTotal / total;
+    return {
+      iterations: total,
+      exact: true,
+      win, tie, lose,
+      winPct: win / total,
+      tiePct: tie / total,
+      losePct: lose / total,
+      winChance,
+      equity: winChance, // совместимость со старым API
+      levelHist: { [heroScore[0]]: total },
+      levelWins,
+    };
+  }
+
   // --- Рекомендация по ставке -----------------------------------------------
   // winChance — шанс стать единственным победителем (0..1). betToCall — сумма
   // колла, pot — банк до колла. Возвращает текст и класс для подсветки.
@@ -357,6 +432,6 @@
   return {
     COLORS, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
-    evaluate5, evaluatePartial, bestHand, bestHandAny, playOnce, simulate, recommend,
+    evaluate5, evaluatePartial, bestHand, bestHandAny, playOnce, simulate, simulateExact, recommend,
   };
 });

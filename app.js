@@ -24,6 +24,7 @@
     const MAX_HERO = 2, MAX_TABLE = 5;
     const comboPctEls = {}; const comboBarEls = {}; const comboItemEls = {};
     let lastWinChance = null, lastHist = null, lastTotal = 0, lastComputing = false;
+    let lastExact = false, lastExactDeals = 0;
 
     // --- Карточка (.pcard) ---------------------------------------------------
     function pcardEl(card, asButton) {
@@ -152,6 +153,12 @@
         const chancePct = (lastWinChance * 100).toFixed(1);
         eqEl.textContent = '· шанс победить ' + chancePct + '%';
         eqEl.title = 'Шанс стать единственным победителем. Если лучшие комбинации равны, удача выбирает одного из равных игроков.';
+        if (lastExact) {
+          const exact = document.createElement('span'); exact.className = 'cn-freq muted';
+          exact.textContent = ' · точно';
+          exact.title = 'Полный перебор всех ' + lastExactDeals.toLocaleString('ru') + ' вариантов закрытых карт соперников, включая пары 5+6.';
+          eqEl.appendChild(exact);
+        }
         if (lastWinChance >= 0.66) eqEl.style.color = '#74f0a8';
         else if (lastWinChance >= 0.5) eqEl.style.color = '#9ec0ff';
         else if (lastWinChance >= 0.33) eqEl.style.color = '#ffcf8a';
@@ -215,6 +222,7 @@
     function resetLiveResult() {
       lastWinChance = null;
       lastHist = null; lastTotal = 0;
+      lastExact = false; lastExactDeals = 0;
       updateComboPcts(null, 0);
       clearOutcomeDisplay();
     }
@@ -247,6 +255,33 @@
       }
     }
 
+    function updateRecommendation(winChance) {
+      const pot = Number($('potInput').value), bet = Number($('betInput').value);
+      // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
+      const rec = E.recommend(winChance,
+        isFinite(bet) && bet > 0 ? bet : undefined,
+        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
+      const chip = $('recoChip');
+      chip.className = 'reco-chip ' + rec.cls;
+      chip.textContent = rec.emoji + ' ' + rec.text;
+    }
+
+    function finishLiveResult(result) {
+      const winChance = result.winChance;
+      lastWinChance = winChance;
+      lastHist = result.levelHist;
+      lastTotal = result.iterations;
+      lastExact = !!result.exact;
+      lastExactDeals = result.exact ? result.iterations : 0;
+      lastComputing = false;
+      updateComboPcts(result.levelHist, result.iterations);
+      setWinChanceDisplay(winChance, false);
+      paintSeg(result.winPct, result.tiePct, result.losePct);
+      paintOutcome(result.winPct, result.tiePct, result.losePct);
+      renderComboNow();
+      updateRecommendation(winChance);
+    }
+
     async function runLive(myGen) {
       if (myGen !== runGen) return;
       if (state.hero.length < 2) {
@@ -259,6 +294,21 @@
       lastComputing = true;
       $('segBar').hidden = false;
       renderComboNow();
+
+      // На готовом столе против одного/двух соперников считаем каждый расклад
+      // точно, а не показываем случайное отклонение Монте-Карло.
+      if (state.table.length === 5 && state.opponents <= 2 && typeof E.simulateExact === 'function') {
+        await new Promise(res => setTimeout(res, 0));
+        if (myGen !== runGen) return;
+        const exact = E.simulateExact({
+          heroHole: state.hero,
+          community: state.table,
+          numOpponents: state.opponents,
+        });
+        if (myGen !== runGen) return;
+        finishLiveResult(exact);
+        return;
+      }
 
       let win = 0, tie = 0, lose = 0, winChanceTotal = 0, levelHist = {};
       const BATCH = 2000;
@@ -293,23 +343,15 @@
       if (myGen !== runGen) return;
 
       const w = win / iterations, t = tie / iterations, l = lose / iterations;
-      const winChance = winChanceTotal / iterations;
-      updateComboPcts(levelHist, iterations);
-      lastWinChance = winChance;
-      lastHist = levelHist; lastTotal = iterations; lastComputing = false;
-      setWinChanceDisplay(winChance, false);
-      paintSeg(w, t, l);
-      paintOutcome(w, t, l);
-      renderComboNow();
-
-      const pot = Number($('potInput').value), bet = Number($('betInput').value);
-      // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
-      const rec = E.recommend(winChance,
-        isFinite(bet) && bet > 0 ? bet : undefined,
-        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
-      const chip = $('recoChip');
-      chip.className = 'reco-chip ' + rec.cls;
-      chip.textContent = rec.emoji + ' ' + rec.text;
+      finishLiveResult({
+        iterations,
+        exact: false,
+        winPct: w,
+        tiePct: t,
+        losePct: l,
+        winChance: winChanceTotal / iterations,
+        levelHist,
+      });
     }
 
     function paintSeg(w, t, l) {

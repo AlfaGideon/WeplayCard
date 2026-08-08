@@ -703,6 +703,27 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     return best;
   }
 
+  // --- Сравнение результатов вскрытия ----------------------------------------
+  // Возвращает вероятность героя стать единственным победителем в уже
+  // определившемся раскладе. При равных лучших руках игра выбирает победителя
+  // случайной дуэлью, поэтому шанс героя равен 1/N среди N равных рук.
+  function resolveShowdown(heroScore, opponentScores) {
+    const scores = [heroScore].concat(opponentScores);
+    let bestScore = scores[0];
+    for (let i = 1; i < scores.length; i++) {
+      if (compareScore(scores[i], bestScore) > 0) bestScore = scores[i];
+    }
+    let tiedPlayers = 0;
+    for (const score of scores) {
+      if (compareScore(score, bestScore) === 0) tiedPlayers++;
+    }
+    const heroIsWinner = compareScore(heroScore, bestScore) === 0;
+
+    if (!heroIsWinner) return { result: 'lose', winChance: 0, tiedPlayers: 0 };
+    if (tiedPlayers === 1) return { result: 'win', winChance: 1, tiedPlayers: 1 };
+    return { result: 'tie', winChance: 1 / tiedPlayers, tiedPlayers };
+  }
+
   // --- Один розыгрыш (Монте-Карло) ------------------------------------------
   // Добирает недостающие общие карты и руки соперников из оставшейся колоды,
   // сводит в показдаун и сравнивает. В «Дуэли лжи» банк не делится:
@@ -731,34 +752,14 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const fullCommunity = community.concat(drawn);
 
     const heroScore = bestHand(heroHole.concat(fullCommunity)).score;
-    const scores = [heroScore];
+    const opponentScores = [];
     for (let i = 0; i < opponents; i++) {
       const oppHole = remaining.slice(p, p + 2); p += 2;
-      scores.push(bestHand(oppHole.concat(fullCommunity)).score);
+      opponentScores.push(bestHand(oppHole.concat(fullCommunity)).score);
     }
 
-    let bestScore = scores[0];
-    for (let i = 1; i < scores.length; i++) {
-      if (compareScore(scores[i], bestScore) > 0) bestScore = scores[i];
-    }
-    const winners = scores.filter(score => compareScore(score, bestScore) === 0);
-    const heroIsWinner = compareScore(heroScore, bestScore) === 0;
-    const tiedPlayers = heroIsWinner ? winners.length : 0;
-
-    let result, winChance;
-    if (!heroIsWinner) {
-      result = 'lose';
-      winChance = 0;
-    } else if (tiedPlayers === 1) {
-      result = 'win';
-      winChance = 1;
-    } else {
-      // Это не делёж: удача в игре выбирает одного победителя из равных рук.
-      result = 'tie';
-      winChance = 1 / tiedPlayers;
-    }
-
-    return { result, winChance, tiedPlayers, heroLevel: heroScore[0], heroScore };
+    const outcome = resolveShowdown(heroScore, opponentScores);
+    return Object.assign(outcome, { heroLevel: heroScore[0], heroScore });
   }
 
   // --- Полная симуляция (синхронно) -----------------------------------------
@@ -800,6 +801,80 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     };
   }
 
+  // --- Точный расчёт на готовом столе ---------------------------------------
+  // Когда все 5 общих карт известны, нет причин вносить погрешность Монте-Карло.
+  // Для одного/двух соперников перебираем все допустимые пары их закрытых карт.
+  // При трёх соперниках вариантов слишком много для мгновенного браузерного
+  // расчёта, поэтому вызывающий код продолжает использовать simulate().
+  function simulateExact(opts) {
+    opts = opts || {};
+    const heroHole = opts.heroHole || [];
+    const community = opts.community || [];
+    const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
+    if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
+    if (!community || community.length !== 5) throw new Error('Для точного расчёта нужны все 5 общих карт');
+    if (opponents < 1 || opponents > 2) throw new Error('Точный расчёт доступен для 1 или 2 соперников');
+
+    const usedCards = heroHole.concat(community);
+    const used = new Set(usedCards.map(cardKey));
+    if (used.size !== usedCards.length) throw new Error('Одна и та же известная карта указана дважды');
+    const remaining = buildDeck().filter(c => !used.has(cardKey(c)));
+    const heroScore = bestHand(heroHole.concat(community)).score;
+
+    // Оцениваем каждую возможную пару соперника ровно один раз. На готовом
+    // столе её сила не меняется, так что вложенный перебор делает только
+    // сравнения счёта, а не десятки тысяч повторных bestHand().
+    const pairs = [];
+    for (let a = 0; a < remaining.length; a++) {
+      for (let b = a + 1; b < remaining.length; b++) {
+        pairs.push({ a, b, score: bestHand([remaining[a], remaining[b]].concat(community)).score });
+      }
+    }
+
+    let win = 0, tie = 0, lose = 0, winChanceTotal = 0, total = 0;
+    const levelWins = {};
+    function tally(outcome) {
+      total++;
+      if (outcome.result === 'win') {
+        win++;
+        levelWins[heroScore[0]] = (levelWins[heroScore[0]] || 0) + 1;
+      } else if (outcome.result === 'tie') {
+        tie++;
+      } else {
+        lose++;
+      }
+      winChanceTotal += outcome.winChance;
+    }
+
+    if (opponents === 1) {
+      for (const pair of pairs) tally(resolveShowdown(heroScore, [pair.score]));
+    } else {
+      // Пары принадлежат разным соперникам, поэтому не могут использовать одну
+      // и ту же карту. Порядок пар соответствует двум различимым соперникам.
+      for (const first of pairs) {
+        for (const second of pairs) {
+          if (first.a === second.a || first.a === second.b ||
+              first.b === second.a || first.b === second.b) continue;
+          tally(resolveShowdown(heroScore, [first.score, second.score]));
+        }
+      }
+    }
+
+    const winChance = winChanceTotal / total;
+    return {
+      iterations: total,
+      exact: true,
+      win, tie, lose,
+      winPct: win / total,
+      tiePct: tie / total,
+      losePct: lose / total,
+      winChance,
+      equity: winChance, // совместимость со старым API
+      levelHist: { [heroScore[0]]: total },
+      levelWins,
+    };
+  }
+
   // --- Рекомендация по ставке -----------------------------------------------
   // winChance — шанс стать единственным победителем (0..1). betToCall — сумма
   // колла, pot — банк до колла. Возвращает текст и класс для подсветки.
@@ -826,7 +901,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   return {
     COLORS, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
-    evaluate5, evaluatePartial, bestHand, bestHandAny, playOnce, simulate, recommend,
+    evaluate5, evaluatePartial, bestHand, bestHandAny, playOnce, simulate, simulateExact, recommend,
   };
 });
 
@@ -858,6 +933,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const MAX_HERO = 2, MAX_TABLE = 5;
     const comboPctEls = {}; const comboBarEls = {}; const comboItemEls = {};
     let lastWinChance = null, lastHist = null, lastTotal = 0, lastComputing = false;
+    let lastExact = false, lastExactDeals = 0;
 
     // --- Карточка (.pcard) ---------------------------------------------------
     function pcardEl(card, asButton) {
@@ -986,6 +1062,12 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
         const chancePct = (lastWinChance * 100).toFixed(1);
         eqEl.textContent = '· шанс победить ' + chancePct + '%';
         eqEl.title = 'Шанс стать единственным победителем. Если лучшие комбинации равны, удача выбирает одного из равных игроков.';
+        if (lastExact) {
+          const exact = document.createElement('span'); exact.className = 'cn-freq muted';
+          exact.textContent = ' · точно';
+          exact.title = 'Полный перебор всех ' + lastExactDeals.toLocaleString('ru') + ' вариантов закрытых карт соперников, включая пары 5+6.';
+          eqEl.appendChild(exact);
+        }
         if (lastWinChance >= 0.66) eqEl.style.color = '#74f0a8';
         else if (lastWinChance >= 0.5) eqEl.style.color = '#9ec0ff';
         else if (lastWinChance >= 0.33) eqEl.style.color = '#ffcf8a';
@@ -1049,6 +1131,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     function resetLiveResult() {
       lastWinChance = null;
       lastHist = null; lastTotal = 0;
+      lastExact = false; lastExactDeals = 0;
       updateComboPcts(null, 0);
       clearOutcomeDisplay();
     }
@@ -1081,6 +1164,33 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       }
     }
 
+    function updateRecommendation(winChance) {
+      const pot = Number($('potInput').value), bet = Number($('betInput').value);
+      // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
+      const rec = E.recommend(winChance,
+        isFinite(bet) && bet > 0 ? bet : undefined,
+        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
+      const chip = $('recoChip');
+      chip.className = 'reco-chip ' + rec.cls;
+      chip.textContent = rec.emoji + ' ' + rec.text;
+    }
+
+    function finishLiveResult(result) {
+      const winChance = result.winChance;
+      lastWinChance = winChance;
+      lastHist = result.levelHist;
+      lastTotal = result.iterations;
+      lastExact = !!result.exact;
+      lastExactDeals = result.exact ? result.iterations : 0;
+      lastComputing = false;
+      updateComboPcts(result.levelHist, result.iterations);
+      setWinChanceDisplay(winChance, false);
+      paintSeg(result.winPct, result.tiePct, result.losePct);
+      paintOutcome(result.winPct, result.tiePct, result.losePct);
+      renderComboNow();
+      updateRecommendation(winChance);
+    }
+
     async function runLive(myGen) {
       if (myGen !== runGen) return;
       if (state.hero.length < 2) {
@@ -1093,6 +1203,21 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       lastComputing = true;
       $('segBar').hidden = false;
       renderComboNow();
+
+      // На готовом столе против одного/двух соперников считаем каждый расклад
+      // точно, а не показываем случайное отклонение Монте-Карло.
+      if (state.table.length === 5 && state.opponents <= 2 && typeof E.simulateExact === 'function') {
+        await new Promise(res => setTimeout(res, 0));
+        if (myGen !== runGen) return;
+        const exact = E.simulateExact({
+          heroHole: state.hero,
+          community: state.table,
+          numOpponents: state.opponents,
+        });
+        if (myGen !== runGen) return;
+        finishLiveResult(exact);
+        return;
+      }
 
       let win = 0, tie = 0, lose = 0, winChanceTotal = 0, levelHist = {};
       const BATCH = 2000;
@@ -1127,23 +1252,15 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       if (myGen !== runGen) return;
 
       const w = win / iterations, t = tie / iterations, l = lose / iterations;
-      const winChance = winChanceTotal / iterations;
-      updateComboPcts(levelHist, iterations);
-      lastWinChance = winChance;
-      lastHist = levelHist; lastTotal = iterations; lastComputing = false;
-      setWinChanceDisplay(winChance, false);
-      paintSeg(w, t, l);
-      paintOutcome(w, t, l);
-      renderComboNow();
-
-      const pot = Number($('potInput').value), bet = Number($('betInput').value);
-      // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
-      const rec = E.recommend(winChance,
-        isFinite(bet) && bet > 0 ? bet : undefined,
-        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
-      const chip = $('recoChip');
-      chip.className = 'reco-chip ' + rec.cls;
-      chip.textContent = rec.emoji + ' ' + rec.text;
+      finishLiveResult({
+        iterations,
+        exact: false,
+        winPct: w,
+        tiePct: t,
+        losePct: l,
+        winChance: winChanceTotal / iterations,
+        levelHist,
+      });
     }
 
     function paintSeg(w, t, l) {
