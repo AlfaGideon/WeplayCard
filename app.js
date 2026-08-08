@@ -67,8 +67,24 @@
       hintTimer = setTimeout(() => { h.innerHTML = old; }, 1800);
     }
 
+    function setMode(mode) {
+      state.mode = mode;
+      const mh = $('modeHero'), mt = $('modeTable');
+      const hint = $('modeHint');
+      if (mode === 'hero') {
+        if (mh) mh.classList.add('active');
+        if (mt) mt.classList.remove('active');
+        if (hint) hint.innerHTML = 'Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).';
+      } else {
+        if (mt) mt.classList.add('active');
+        if (mh) mh.classList.remove('active');
+        if (hint) hint.innerHTML = 'Кликай карты на колоде, чтобы отметить <b>общие</b> на столе (максимум 5).';
+      }
+    }
+
     function toggleCard(card) {
       const key = E.cardKey(card);
+      let switchToTable = false;
       if (state.mode === 'hero') {
         const i = state.hero.findIndex(x => E.cardKey(x) === key);
         if (i >= 0) state.hero.splice(i, 1);
@@ -76,6 +92,8 @@
           if (state.table.some(x => E.cardKey(x) === key)) { flashHint('Эта карта уже на столе — нельзя дважды.'); return; }
           if (state.hero.length >= MAX_HERO) { flashHint('У тебя уже 2 карты. Сними одну, чтобы заменить.'); return; }
           state.hero.push(card);
+          // После второй своей карты сразу переключаем на ввод стола.
+          switchToTable = state.hero.length === MAX_HERO;
         }
       } else {
         const i = state.table.findIndex(x => E.cardKey(x) === key);
@@ -86,6 +104,7 @@
           state.table.push(card);
         }
       }
+      if (switchToTable) setMode('table');
       renderGrid(); renderSelection(); renderComboNow(); scheduleRecompute();
     }
 
@@ -370,20 +389,12 @@
 
     // --- События (с защитой от отсутствующих элементов) ----------------------
     on('rulesToggle', 'click', () => { const r = $('rules'); if (r) r.classList.toggle('collapsed'); });
-    on('modeHero', 'click', () => {
-      state.mode = 'hero';
-      const mh = $('modeHero'), mt = $('modeTable');
-      if (mh) mh.classList.add('active'); if (mt) mt.classList.remove('active');
-      const h = $('modeHint'); if (h) h.innerHTML = 'Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).';
-    });
-    on('modeTable', 'click', () => {
-      state.mode = 'table';
-      const mh = $('modeHero'), mt = $('modeTable');
-      if (mt) mt.classList.add('active'); if (mh) mh.classList.remove('active');
-      const h = $('modeHint'); if (h) h.innerHTML = 'Кликай карты на колоде, чтобы отметить <b>общие</b> на столе (максимум 5).';
-    });
+    on('modeHero', 'click', () => setMode('hero'));
+    on('modeTable', 'click', () => setMode('table'));
     on('clearBtn', 'click', () => {
       state.hero = []; state.table = [];
+      // Очистка всегда возвращает к выбору своих карт.
+      setMode('hero');
       renderGrid(); renderSelection(); renderComboNow(); scheduleRecompute();
     });
     function opponentLabel(n) {

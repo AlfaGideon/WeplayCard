@@ -108,11 +108,11 @@ body {
 .sidebar.collapsed .sidebar-collapsed-label { opacity: 1; }
 
 /* ===== Рабочая зона ===== */
-.workspace { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 28px 40px; }
+.workspace { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 24px 28px; }
 .workspace::-webkit-scrollbar { width: 10px; }
 .workspace::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 8px; }
 
-.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 16px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 16px; }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .logo {
   width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
@@ -132,7 +132,7 @@ body {
 .hand-row {
   display: flex; gap: 18px; align-items: stretch;
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 16px 18px; box-shadow: var(--shadow);
+  padding: 12px 16px; box-shadow: var(--shadow);
 }
 .hand-left { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 .hand-right { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 9px; padding-left: 18px; border-left: 1px solid var(--border); }
@@ -166,8 +166,8 @@ body {
 
 /* Текущая комбинация */
 .combo-now {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px 0;
-  background: var(--panel-solid); border: 1px solid var(--border); border-radius: 13px; padding: 11px 15px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 9px 0 5px;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: 13px; padding: 8px 12px;
 }
 .combo-now .cn-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
 .combo-now .cn-value { font-weight: 800; font-size: 14px; }
@@ -175,28 +175,28 @@ body {
 .combo-now .cn-equity { font-size: 13px; font-weight: 700; }
 .combo-now .cn-freq { font-size: 12px; font-weight: 500; }
 .combo-now .cn-note { font-size: 12px; }
-.combo-now .pcard { width: 48px; height: 66px; flex: 0 0 auto; }
-.combo-now .pcard .center { font-size: 18px; }
+.combo-now .pcard { width: 42px; height: 58px; flex: 0 0 auto; }
+.combo-now .pcard .center { font-size: 16px; }
 
 /* Контролы */
-.controls { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 4px 0 6px; }
-.segmented { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 4px; gap: 4px; }
-.seg-btn { border: none; background: transparent; color: var(--muted); padding: 8px 18px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .18s; }
+.controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 2px; }
+.segmented { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg-btn { border: none; background: transparent; color: var(--muted); padding: 6px 14px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all .18s; }
 .seg-btn:hover { color: var(--text); }
 .seg-btn.active { background: var(--grad); color: #fff; box-shadow: 0 4px 14px rgba(123,92,255,0.4); }
 .seg-btn.ghost { color: #ffb0bd; }
 .seg-btn.ghost:hover { color: #ffd0d8; }
 
-.opts { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.opt-group { display: flex; align-items: center; gap: 10px; }
+.opts { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.opt-group { display: flex; align-items: center; gap: 8px; }
 .opt-label { font-size: 12px; color: var(--muted); }
 .players-group { gap: 9px; }
 .players-labels { display: flex; flex-direction: column; gap: 2px; }
 .players-note { color: #aeb8cf; font-size: 10px; line-height: 1.2; white-space: nowrap; }
-.exact-status { display: inline-flex; align-items: center; gap: 6px; align-self: center; color: #8df0ba; font-size: 11px; font-weight: 750; white-space: nowrap; padding: 6px 9px; border: 1px solid rgba(34,197,94,0.28); border-radius: 999px; background: rgba(34,197,94,0.07); }
+.exact-status { display: inline-flex; align-items: center; gap: 5px; align-self: center; color: #8df0ba; font-size: 10px; font-weight: 750; white-space: nowrap; padding: 4px 8px; border: 1px solid rgba(34,197,94,0.28); border-radius: 999px; background: rgba(34,197,94,0.07); }
 .exact-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.85); }
-.stepper { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 3px; }
-.stepper-btn { border: none; background: transparent; color: var(--muted); min-width: 38px; height: 32px; border-radius: 9px; cursor: pointer; font-weight: 700; transition: all .15s; }
+.stepper { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
+.stepper-btn { border: none; background: transparent; color: var(--muted); min-width: 34px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all .15s; }
 .stepper-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .stepper-btn.active { background: var(--grad); color: #fff; }
 
@@ -210,16 +210,16 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .field input::placeholder { color: #5b667e; }
 .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,140,255,0.25); }
 
-/* современные кастомные степперы для Итераций / Банк / Колл */
+/* компактные кастомные степперы для Банка / Колла */
 .field--num { gap: 4px; }
-.field-label { font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); }
+.field-label { font-size: 9px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); }
 .num-input {
   display: flex; align-items: stretch;
   background: #0e1626;
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  height: 36px;
+  height: 32px;
   margin-top: 2px;
   transition: border-color .18s, box-shadow .18s, background .18s, transform .12s;
 }
@@ -230,7 +230,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   background: #111d33;
 }
 .num-input input {
-  width: 86px; min-width: 0; flex: 1 1 auto;
+  width: 76px; min-width: 0; flex: 1 1 auto;
   background: transparent; border: none; border-radius: 0;
   text-align: center; font-size: 13px; font-weight: 750;
   font-variant-numeric: tabular-nums; letter-spacing: .2px;
@@ -240,7 +240,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .num-input input:focus { border-color: transparent; box-shadow: none; }
 .num-input input::placeholder { color: #5b667e; font-weight: 600; }
 .num-btn {
-  width: 34px; flex: 0 0 34px;
+  width: 30px; flex: 0 0 30px;
   display: grid; place-items: center;
   background: rgba(255,255,255,0.035);
   border: none; color: var(--muted);
@@ -258,12 +258,12 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .num-group { gap: 8px; }
 }
 
-.hint { font-size: 12px; color: var(--muted); margin: 8px 0 12px; }
+.hint { font-size: 11px; color: var(--muted); margin: 4px 0 7px; }
 
 /* Колода — гибкая сетка 9 колонок: карты подстраиваются под ширину, скроллбара нет */
 .deck {
-  display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px;
-  max-width: 720px; margin: 0 auto; padding: 14px;
+  display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px;
+  max-width: 650px; margin: 0 auto; padding: 10px;
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
 }
 
@@ -1109,8 +1109,24 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       hintTimer = setTimeout(() => { h.innerHTML = old; }, 1800);
     }
 
+    function setMode(mode) {
+      state.mode = mode;
+      const mh = $('modeHero'), mt = $('modeTable');
+      const hint = $('modeHint');
+      if (mode === 'hero') {
+        if (mh) mh.classList.add('active');
+        if (mt) mt.classList.remove('active');
+        if (hint) hint.innerHTML = 'Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).';
+      } else {
+        if (mt) mt.classList.add('active');
+        if (mh) mh.classList.remove('active');
+        if (hint) hint.innerHTML = 'Кликай карты на колоде, чтобы отметить <b>общие</b> на столе (максимум 5).';
+      }
+    }
+
     function toggleCard(card) {
       const key = E.cardKey(card);
+      let switchToTable = false;
       if (state.mode === 'hero') {
         const i = state.hero.findIndex(x => E.cardKey(x) === key);
         if (i >= 0) state.hero.splice(i, 1);
@@ -1118,6 +1134,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           if (state.table.some(x => E.cardKey(x) === key)) { flashHint('Эта карта уже на столе — нельзя дважды.'); return; }
           if (state.hero.length >= MAX_HERO) { flashHint('У тебя уже 2 карты. Сними одну, чтобы заменить.'); return; }
           state.hero.push(card);
+          // После второй своей карты сразу переключаем на ввод стола.
+          switchToTable = state.hero.length === MAX_HERO;
         }
       } else {
         const i = state.table.findIndex(x => E.cardKey(x) === key);
@@ -1128,6 +1146,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           state.table.push(card);
         }
       }
+      if (switchToTable) setMode('table');
       renderGrid(); renderSelection(); renderComboNow(); scheduleRecompute();
     }
 
@@ -1412,20 +1431,12 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
     // --- События (с защитой от отсутствующих элементов) ----------------------
     on('rulesToggle', 'click', () => { const r = $('rules'); if (r) r.classList.toggle('collapsed'); });
-    on('modeHero', 'click', () => {
-      state.mode = 'hero';
-      const mh = $('modeHero'), mt = $('modeTable');
-      if (mh) mh.classList.add('active'); if (mt) mt.classList.remove('active');
-      const h = $('modeHint'); if (h) h.innerHTML = 'Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).';
-    });
-    on('modeTable', 'click', () => {
-      state.mode = 'table';
-      const mh = $('modeHero'), mt = $('modeTable');
-      if (mt) mt.classList.add('active'); if (mh) mh.classList.remove('active');
-      const h = $('modeHint'); if (h) h.innerHTML = 'Кликай карты на колоде, чтобы отметить <b>общие</b> на столе (максимум 5).';
-    });
+    on('modeHero', 'click', () => setMode('hero'));
+    on('modeTable', 'click', () => setMode('table'));
     on('clearBtn', 'click', () => {
       state.hero = []; state.table = [];
+      // Очистка всегда возвращает к выбору своих карт.
+      setMode('hero');
       renderGrid(); renderSelection(); renderComboNow(); scheduleRecompute();
     });
     function opponentLabel(n) {
