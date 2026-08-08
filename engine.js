@@ -236,11 +236,24 @@
 
   // --- Один розыгрыш (Монте-Карло) ------------------------------------------
   // Добирает недостающие общие карты и руки соперников из оставшейся колоды,
-  // сводит в показдаун и сравнивает.
+  // сводит в показдаун и сравнивает. В «Дуэли лжи» банк не делится:
+  // при полностью равных комбинациях удача выбирает одного из N равных игроков.
+  // Поэтому winChance = 1/N — шанс героя стать единственным победителем в
+  // таком равном противостоянии, а не доля банка.
   function playOnce(heroHole, community, numOpponents, rng) {
     rng = rng || Math.random;
-    const used = new Set([...heroHole, ...community].map(cardKey));
+    const opponents = Number.isInteger(numOpponents) ? numOpponents : 1;
+    if (opponents < 1) throw new Error('Нужен хотя бы один соперник');
+    if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
+    if (!community || community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
+
+    const usedCards = heroHole.concat(community);
+    const used = new Set(usedCards.map(cardKey));
+    if (used.size !== usedCards.length) throw new Error('Одна и та же известная карта указана дважды');
+
+    const cardsNeeded = (5 - community.length) + opponents * 2;
     const remaining = buildDeck().filter(c => !used.has(cardKey(c)));
+    if (cardsNeeded > remaining.length) throw new Error('В колоде недостаточно карт для всех соперников');
     shuffle(remaining, rng);
 
     let p = 0;
@@ -249,71 +262,95 @@
     const fullCommunity = community.concat(drawn);
 
     const heroScore = bestHand(heroHole.concat(fullCommunity)).score;
-
-    let maxOpp = [0];
-    for (let i = 0; i < numOpponents; i++) {
+    const scores = [heroScore];
+    for (let i = 0; i < opponents; i++) {
       const oppHole = remaining.slice(p, p + 2); p += 2;
-      const s = bestHand(oppHole.concat(fullCommunity)).score;
-      if (compareScore(s, maxOpp) > 0) maxOpp = s;
+      scores.push(bestHand(oppHole.concat(fullCommunity)).score);
     }
 
-    let result;
-    const cmp = compareScore(heroScore, maxOpp);
-    if (cmp > 0) result = 'win';
-    else if (cmp === 0) result = 'tie';
-    else result = 'lose';
+    let bestScore = scores[0];
+    for (let i = 1; i < scores.length; i++) {
+      if (compareScore(scores[i], bestScore) > 0) bestScore = scores[i];
+    }
+    const winners = scores.filter(score => compareScore(score, bestScore) === 0);
+    const heroIsWinner = compareScore(heroScore, bestScore) === 0;
+    const tiedPlayers = heroIsWinner ? winners.length : 0;
 
-    return { result, heroLevel: heroScore[0], heroScore };
+    let result, winChance;
+    if (!heroIsWinner) {
+      result = 'lose';
+      winChance = 0;
+    } else if (tiedPlayers === 1) {
+      result = 'win';
+      winChance = 1;
+    } else {
+      // Это не делёж: удача в игре выбирает одного победителя из равных рук.
+      result = 'tie';
+      winChance = 1 / tiedPlayers;
+    }
+
+    return { result, winChance, tiedPlayers, heroLevel: heroScore[0], heroScore };
   }
 
   // --- Полная симуляция (синхронно) -----------------------------------------
   function simulate(opts) {
+    opts = opts || {};
     const heroHole = opts.heroHole || [];
     const community = opts.community || [];
-    const numOpponents = opts.numOpponents || 1;
-    const iterations = opts.iterations || 20000;
+    const numOpponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
+    const iterations = Number.isInteger(opts.iterations) && opts.iterations > 0 ? opts.iterations : 20000;
     const rng = opts.rng || Math.random;
 
-    let win = 0, tie = 0, lose = 0;
+    let win = 0, tie = 0, lose = 0, winChanceTotal = 0;
     const levelHist = {};
-    const levelWins = {}; // победы по уровню финальной руки героя
+    const levelWins = {}; // чистые победы по уровню финальной руки героя
 
     for (let i = 0; i < iterations; i++) {
       const r = playOnce(heroHole, community, numOpponents, rng);
       if (r.result === 'win') { win++; levelWins[r.heroLevel] = (levelWins[r.heroLevel] || 0) + 1; }
       else if (r.result === 'tie') tie++;
       else lose++;
+      winChanceTotal += r.winChance;
       levelHist[r.heroLevel] = (levelHist[r.heroLevel] || 0) + 1;
     }
 
-    const equity = (win + tie / 2) / iterations;
+    // При равных руках один победитель выбирается удачей. Например, при
+    // равенстве героя с двумя соперниками его шанс победить в этом исходе — 1/3.
+    const winChance = winChanceTotal / iterations;
     return {
       iterations,
       win, tie, lose,
-      winPct: win / iterations,
-      tiePct: tie / iterations,
+      winPct: win / iterations,       // победа более сильной комбинацией
+      tiePct: tie / iterations,       // равные комбинации до случайной дуэли
       losePct: lose / iterations,
-      equity,
+      winChance,
+      // Оставляем alias для совместимости с предыдущими версиями API.
+      equity: winChance,
       levelHist,
       levelWins,
     };
   }
 
   // --- Рекомендация по ставке -----------------------------------------------
-  // equity — доля (0..1). Возвращает текст и класс для подсветки.
-  function recommend(equity, betToCall, pot) {
-    // Если заданы пот-оддсы, учитываем их: нужно equity > bet/(pot+bet).
+  // winChance — шанс стать единственным победителем (0..1). betToCall — сумма
+  // колла, pot — банк до колла. Возвращает текст и класс для подсветки.
+  function recommend(winChance, betToCall, pot) {
     let oddsNote = '';
-    if (typeof betToCall === 'number' && typeof pot === 'number' && pot + betToCall > 0) {
+    if (typeof betToCall === 'number' && betToCall > 0 &&
+        typeof pot === 'number' && pot >= 0 && pot + betToCall > 0) {
       const need = betToCall / (pot + betToCall);
       oddsNote = ` (нужно ≥ ${(need * 100).toFixed(0)}% по пот-оддсам)`;
-      if (equity >= need && equity >= 0.5) {
-        return { text: 'УРАВНИВАЙ / ПОДНИМАЙ', cls: 'call', emoji: '✅', note: oddsNote };
+      if (winChance >= need) {
+        if (winChance >= 0.66) {
+          return { text: 'ПОДНИМАЙ СТАВКУ', cls: 'raise', emoji: '🔥', note: oddsNote };
+        }
+        return { text: 'УРАВНИВАЙ ПО ПОТ-ОДДСАМ', cls: 'call', emoji: '✅', note: oddsNote };
       }
+      return { text: 'ПАСУЙ — не хватает шанса', cls: 'fold', emoji: '🛑', note: oddsNote };
     }
-    if (equity >= 0.66) return { text: 'ПОДНИМАЙ СТАВКУ', cls: 'raise', emoji: '🔥', note: oddsNote };
-    if (equity >= 0.5)  return { text: 'УРАВНИВАЙ (Call)', cls: 'call', emoji: '✅', note: oddsNote };
-    if (equity >= 0.33) return { text: 'Малая ставка / рискованный блеф', cls: 'warn', emoji: '⚠️', note: oddsNote };
+    if (winChance >= 0.66) return { text: 'ПОДНИМАЙ СТАВКУ', cls: 'raise', emoji: '🔥', note: oddsNote };
+    if (winChance >= 0.5)  return { text: 'УРАВНИВАЙ (Call)', cls: 'call', emoji: '✅', note: oddsNote };
+    if (winChance >= 0.33) return { text: 'Малая ставка / рискованный блеф', cls: 'warn', emoji: '⚠️', note: oddsNote };
     return { text: 'ПАСУЙ (Fold)', cls: 'fold', emoji: '🛑', note: oddsNote };
   }
 

@@ -158,6 +158,11 @@ body {
 .seg-win { background: var(--raise); }
 .seg-tie { background: #64748b; }
 .seg-lose { background: var(--fold); }
+.outcome-breakdown { display: flex; justify-content: flex-end; gap: 8px; font-size: 10px; line-height: 1; white-space: nowrap; }
+.outcome-breakdown span { font-variant-numeric: tabular-nums; }
+.outcome-win { color: #74f0a8; }
+.outcome-tie { color: #aeb8cf; }
+.outcome-lose { color: #ff9aa9; }
 
 /* Текущая комбинация */
 .combo-now {
@@ -185,6 +190,9 @@ body {
 .opts { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .opt-group { display: flex; align-items: center; gap: 10px; }
 .opt-label { font-size: 12px; color: var(--muted); }
+.players-group { gap: 9px; }
+.players-labels { display: flex; flex-direction: column; gap: 2px; }
+.players-note { color: #aeb8cf; font-size: 10px; line-height: 1.2; white-space: nowrap; }
 .stepper { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 3px; }
 .stepper-btn { border: none; background: transparent; color: var(--muted); min-width: 38px; height: 32px; border-radius: 9px; cursor: pointer; font-weight: 700; transition: all .15s; }
 .stepper-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
@@ -298,6 +306,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .hand-row { flex-direction: column; }
   .hand-right { align-items: flex-start; border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 12px; }
   .equity-readout { text-align: left; }
+  .outcome-breakdown { justify-content: flex-start; flex-wrap: wrap; }
   .workspace { padding: 16px 14px 32px; }
   .deck { gap: 6px; max-width: 100%; }
   .hand-cards .pcard { width: 48px; height: 66px; }
@@ -321,7 +330,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           <span class="sb-dot"></span>
           <h2>Комбинации</h2>
         </div>
-        <div class="combo-caption">Частота твоей финальной комбинации (по симуляции)</div>
+        <div class="combo-caption">Частота твоей финальной комбинации (не вероятность победы)</div>
         <div class="combo-list" id="rulesBody"></div>
         <div class="sidebar-note">
           Колода: 4 цвета × 1…9 = 36 карт. 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
@@ -343,9 +352,9 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
             <span>Дуэль лжи · помощник за столом</span>
           </div>
         </div>
-        <div class="top-equity" id="topEquity" title="Шанс выиграть (equity)">
+        <div class="top-equity" id="topEquity" title="Шанс стать единственным победителем; при равной комбинации исход решает удача">
           <span class="te-val" id="topVal">—</span>
-          <span class="te-cap">equity</span>
+          <span class="te-cap">шанс победить</span>
         </div>
       </header>
 
@@ -358,15 +367,20 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           </div>
         </div>
         <div class="hand-right">
-          <div class="equity-readout">
+          <div class="equity-readout" title="Шанс стать единственным победителем; при равной комбинации исход решает удача">
             <span class="er-value" id="ebValue">—</span>
-            <span class="er-cap">шанс выиграть</span>
+            <span class="er-cap">шанс победить</span>
           </div>
           <div class="reco-chip" id="recoChip">отметь 2 карты</div>
           <div class="seg" id="segBar" hidden>
             <div class="seg-win" id="segWin"></div>
             <div class="seg-tie" id="segTie"></div>
             <div class="seg-lose" id="segLose"></div>
+          </div>
+          <div class="outcome-breakdown" id="outcomeBreakdown" hidden aria-live="polite">
+            <span class="outcome-win" id="outWin">сильнее —</span>
+            <span class="outcome-tie" id="outTie">равная → удача —</span>
+            <span class="outcome-lose" id="outLose">слабее —</span>
           </div>
         </div>
       </section>
@@ -385,12 +399,15 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           <button class="seg-btn ghost" id="clearBtn">Очистить</button>
         </div>
         <div class="opts">
-          <div class="opt-group">
-            <span class="opt-label">Соперников</span>
-            <div class="stepper">
-              <button class="stepper-btn" data-opp="1">1</button>
-              <button class="stepper-btn" data-opp="2">2</button>
-              <button class="stepper-btn" data-opp="3">3</button>
+          <div class="opt-group players-group">
+            <div class="players-labels">
+              <span class="opt-label">Игроков за столом</span>
+              <span class="players-note" id="playerNote">Вы + 1 соперник</span>
+            </div>
+            <div class="stepper" role="group" aria-label="Всего игроков за столом">
+              <button class="stepper-btn active" data-players="2" title="2 игрока: вы и 1 соперник" aria-label="2 игрока: вы и 1 соперник">2</button>
+              <button class="stepper-btn" data-players="3" title="3 игрока: вы и 2 соперника" aria-label="3 игрока: вы и 2 соперника">3</button>
+              <button class="stepper-btn" data-players="4" title="4 игрока: вы и 3 соперника" aria-label="4 игрока: вы и 3 соперника">4</button>
             </div>
           </div>
           <div class="opt-group num-group">
@@ -688,11 +705,24 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
   // --- Один розыгрыш (Монте-Карло) ------------------------------------------
   // Добирает недостающие общие карты и руки соперников из оставшейся колоды,
-  // сводит в показдаун и сравнивает.
+  // сводит в показдаун и сравнивает. В «Дуэли лжи» банк не делится:
+  // при полностью равных комбинациях удача выбирает одного из N равных игроков.
+  // Поэтому winChance = 1/N — шанс героя стать единственным победителем в
+  // таком равном противостоянии, а не доля банка.
   function playOnce(heroHole, community, numOpponents, rng) {
     rng = rng || Math.random;
-    const used = new Set([...heroHole, ...community].map(cardKey));
+    const opponents = Number.isInteger(numOpponents) ? numOpponents : 1;
+    if (opponents < 1) throw new Error('Нужен хотя бы один соперник');
+    if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
+    if (!community || community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
+
+    const usedCards = heroHole.concat(community);
+    const used = new Set(usedCards.map(cardKey));
+    if (used.size !== usedCards.length) throw new Error('Одна и та же известная карта указана дважды');
+
+    const cardsNeeded = (5 - community.length) + opponents * 2;
     const remaining = buildDeck().filter(c => !used.has(cardKey(c)));
+    if (cardsNeeded > remaining.length) throw new Error('В колоде недостаточно карт для всех соперников');
     shuffle(remaining, rng);
 
     let p = 0;
@@ -701,71 +731,95 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const fullCommunity = community.concat(drawn);
 
     const heroScore = bestHand(heroHole.concat(fullCommunity)).score;
-
-    let maxOpp = [0];
-    for (let i = 0; i < numOpponents; i++) {
+    const scores = [heroScore];
+    for (let i = 0; i < opponents; i++) {
       const oppHole = remaining.slice(p, p + 2); p += 2;
-      const s = bestHand(oppHole.concat(fullCommunity)).score;
-      if (compareScore(s, maxOpp) > 0) maxOpp = s;
+      scores.push(bestHand(oppHole.concat(fullCommunity)).score);
     }
 
-    let result;
-    const cmp = compareScore(heroScore, maxOpp);
-    if (cmp > 0) result = 'win';
-    else if (cmp === 0) result = 'tie';
-    else result = 'lose';
+    let bestScore = scores[0];
+    for (let i = 1; i < scores.length; i++) {
+      if (compareScore(scores[i], bestScore) > 0) bestScore = scores[i];
+    }
+    const winners = scores.filter(score => compareScore(score, bestScore) === 0);
+    const heroIsWinner = compareScore(heroScore, bestScore) === 0;
+    const tiedPlayers = heroIsWinner ? winners.length : 0;
 
-    return { result, heroLevel: heroScore[0], heroScore };
+    let result, winChance;
+    if (!heroIsWinner) {
+      result = 'lose';
+      winChance = 0;
+    } else if (tiedPlayers === 1) {
+      result = 'win';
+      winChance = 1;
+    } else {
+      // Это не делёж: удача в игре выбирает одного победителя из равных рук.
+      result = 'tie';
+      winChance = 1 / tiedPlayers;
+    }
+
+    return { result, winChance, tiedPlayers, heroLevel: heroScore[0], heroScore };
   }
 
   // --- Полная симуляция (синхронно) -----------------------------------------
   function simulate(opts) {
+    opts = opts || {};
     const heroHole = opts.heroHole || [];
     const community = opts.community || [];
-    const numOpponents = opts.numOpponents || 1;
-    const iterations = opts.iterations || 20000;
+    const numOpponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
+    const iterations = Number.isInteger(opts.iterations) && opts.iterations > 0 ? opts.iterations : 20000;
     const rng = opts.rng || Math.random;
 
-    let win = 0, tie = 0, lose = 0;
+    let win = 0, tie = 0, lose = 0, winChanceTotal = 0;
     const levelHist = {};
-    const levelWins = {}; // победы по уровню финальной руки героя
+    const levelWins = {}; // чистые победы по уровню финальной руки героя
 
     for (let i = 0; i < iterations; i++) {
       const r = playOnce(heroHole, community, numOpponents, rng);
       if (r.result === 'win') { win++; levelWins[r.heroLevel] = (levelWins[r.heroLevel] || 0) + 1; }
       else if (r.result === 'tie') tie++;
       else lose++;
+      winChanceTotal += r.winChance;
       levelHist[r.heroLevel] = (levelHist[r.heroLevel] || 0) + 1;
     }
 
-    const equity = (win + tie / 2) / iterations;
+    // При равных руках один победитель выбирается удачей. Например, при
+    // равенстве героя с двумя соперниками его шанс победить в этом исходе — 1/3.
+    const winChance = winChanceTotal / iterations;
     return {
       iterations,
       win, tie, lose,
-      winPct: win / iterations,
-      tiePct: tie / iterations,
+      winPct: win / iterations,       // победа более сильной комбинацией
+      tiePct: tie / iterations,       // равные комбинации до случайной дуэли
       losePct: lose / iterations,
-      equity,
+      winChance,
+      // Оставляем alias для совместимости с предыдущими версиями API.
+      equity: winChance,
       levelHist,
       levelWins,
     };
   }
 
   // --- Рекомендация по ставке -----------------------------------------------
-  // equity — доля (0..1). Возвращает текст и класс для подсветки.
-  function recommend(equity, betToCall, pot) {
-    // Если заданы пот-оддсы, учитываем их: нужно equity > bet/(pot+bet).
+  // winChance — шанс стать единственным победителем (0..1). betToCall — сумма
+  // колла, pot — банк до колла. Возвращает текст и класс для подсветки.
+  function recommend(winChance, betToCall, pot) {
     let oddsNote = '';
-    if (typeof betToCall === 'number' && typeof pot === 'number' && pot + betToCall > 0) {
+    if (typeof betToCall === 'number' && betToCall > 0 &&
+        typeof pot === 'number' && pot >= 0 && pot + betToCall > 0) {
       const need = betToCall / (pot + betToCall);
       oddsNote = ` (нужно ≥ ${(need * 100).toFixed(0)}% по пот-оддсам)`;
-      if (equity >= need && equity >= 0.5) {
-        return { text: 'УРАВНИВАЙ / ПОДНИМАЙ', cls: 'call', emoji: '✅', note: oddsNote };
+      if (winChance >= need) {
+        if (winChance >= 0.66) {
+          return { text: 'ПОДНИМАЙ СТАВКУ', cls: 'raise', emoji: '🔥', note: oddsNote };
+        }
+        return { text: 'УРАВНИВАЙ ПО ПОТ-ОДДСАМ', cls: 'call', emoji: '✅', note: oddsNote };
       }
+      return { text: 'ПАСУЙ — не хватает шанса', cls: 'fold', emoji: '🛑', note: oddsNote };
     }
-    if (equity >= 0.66) return { text: 'ПОДНИМАЙ СТАВКУ', cls: 'raise', emoji: '🔥', note: oddsNote };
-    if (equity >= 0.5)  return { text: 'УРАВНИВАЙ (Call)', cls: 'call', emoji: '✅', note: oddsNote };
-    if (equity >= 0.33) return { text: 'Малая ставка / рискованный блеф', cls: 'warn', emoji: '⚠️', note: oddsNote };
+    if (winChance >= 0.66) return { text: 'ПОДНИМАЙ СТАВКУ', cls: 'raise', emoji: '🔥', note: oddsNote };
+    if (winChance >= 0.5)  return { text: 'УРАВНИВАЙ (Call)', cls: 'call', emoji: '✅', note: oddsNote };
+    if (winChance >= 0.33) return { text: 'Малая ставка / рискованный блеф', cls: 'warn', emoji: '⚠️', note: oddsNote };
     return { text: 'ПАСУЙ (Fold)', cls: 'fold', emoji: '🛑', note: oddsNote };
   }
 
@@ -798,10 +852,12 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const $ = (id) => document.getElementById(id);
     // Безопасный аналог addEventListener: не падает, если элемент не найден
     const on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
+    // В интерфейсе выбирается общее число игроков за столом (2–4).
+    // В движок передаём только число соперников: всего игроков минус герой.
     const state = { mode: 'hero', hero: [], table: [], opponents: 1 };
     const MAX_HERO = 2, MAX_TABLE = 5;
     const comboPctEls = {}; const comboBarEls = {}; const comboItemEls = {};
-    let lastEquity = null, lastHist = null, lastTotal = 0, lastComputing = false;
+    let lastWinChance = null, lastHist = null, lastTotal = 0, lastComputing = false;
 
     // --- Карточка (.pcard) ---------------------------------------------------
     function pcardEl(card, asButton) {
@@ -916,7 +972,9 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       const name = document.createElement('span'); name.className = 'cn-value'; name.textContent = best.name;
       const lvl = document.createElement('span'); lvl.className = 'cn-level'; lvl.textContent = 'ур. ' + best.level;
 
-      // Шанс победы для этой комбинации (общий equity из симуляции)
+      // Шанс победить — вероятность стать единственным победителем. При
+      // полностью равных комбинациях игра выбирает победителя удачей, поэтому
+      // этому исходу даётся 1/N шанса, а не показывается несуществующий делёж.
       const eqEl = document.createElement('span'); eqEl.className = 'cn-equity';
       if (state.hero.length < 2) {
         eqEl.classList.add('muted');
@@ -924,19 +982,21 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       } else if (lastComputing) {
         eqEl.textContent = '· считаю…';
         eqEl.style.color = 'var(--muted)';
-      } else if (lastEquity != null) {
-        const pct = (lastEquity * 100).toFixed(1);
-        eqEl.textContent = '· шанс выиграть ' + pct + '%';
-        if (lastEquity >= 0.66) eqEl.style.color = '#74f0a8';
-        else if (lastEquity >= 0.5) eqEl.style.color = '#9ec0ff';
-        else if (lastEquity >= 0.33) eqEl.style.color = '#ffcf8a';
+      } else if (lastWinChance != null) {
+        const chancePct = (lastWinChance * 100).toFixed(1);
+        eqEl.textContent = '· шанс победить ' + chancePct + '%';
+        eqEl.title = 'Шанс стать единственным победителем. Если лучшие комбинации равны, удача выбирает одного из равных игроков.';
+        if (lastWinChance >= 0.66) eqEl.style.color = '#74f0a8';
+        else if (lastWinChance >= 0.5) eqEl.style.color = '#9ec0ff';
+        else if (lastWinChance >= 0.33) eqEl.style.color = '#ffcf8a';
         else eqEl.style.color = '#ff9aa9';
-        // дополнительно: как часто эта комбинация выпадет в итоге
+        // Это вероятность именно уровня твоей ФИНАЛЬНОЙ комбинации, не победы.
         if (lastHist && lastTotal) {
           const freq = ((lastHist[best.level] || 0) / lastTotal * 100);
           const fr = document.createElement('span'); fr.className = 'cn-freq muted';
-          fr.textContent = ' · выпадет ' + freq.toFixed(1) + '%';
+          fr.textContent = ' · этот уровень в финале ' + freq.toFixed(1) + '%';
           fr.style.marginLeft = '4px';
+          fr.title = 'Вероятность, что твоя лучшая комбинация закончится этим уровнем. Это не шанс победить.';
           eqEl.appendChild(fr);
         }
       } else {
@@ -962,17 +1022,54 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     }
 
     // --- Живой скоринг (Monte-Carlo, дебаунс + отмена) ----------------------
+    // runGen увеличивается сразу при любом изменении. Поэтому старый расчёт
+    // не успеет на миг нарисовать проценты для прежних карт/числа игроков.
     let runGen = 0, debounceTimer = null;
 
-    function setEquityDisplay(equity, computing) {
-      const txt = computing ? '…' : (equity == null ? '—' : (equity * 100).toFixed(1) + '%');
+    function setWinChanceDisplay(winChance, computing) {
+      const txt = computing ? '…' : (winChance == null ? '—' : (winChance * 100).toFixed(1) + '%');
       $('ebValue').textContent = txt;
       $('topVal').textContent = txt;
     }
 
+    function clearOutcomeDisplay() {
+      const summary = $('outcomeBreakdown');
+      if (summary) summary.hidden = true;
+    }
+
+    function paintOutcome(w, t, l) {
+      const summary = $('outcomeBreakdown');
+      if (!summary) return;
+      summary.hidden = false;
+      $('outWin').textContent = 'сильнее ' + (w * 100).toFixed(1) + '%';
+      $('outTie').textContent = 'равная → удача ' + (t * 100).toFixed(1) + '%';
+      $('outLose').textContent = 'слабее ' + (l * 100).toFixed(1) + '%';
+    }
+
+    function resetLiveResult() {
+      lastWinChance = null;
+      lastHist = null; lastTotal = 0;
+      updateComboPcts(null, 0);
+      clearOutcomeDisplay();
+    }
+
     function scheduleRecompute() {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(runLive, 160);
+      const myGen = ++runGen; // отменяет уже запущенный расчёт немедленно
+      resetLiveResult();
+
+      if (state.hero.length < 2) {
+        lastComputing = false;
+        setWinChanceDisplay(null, false);
+        const chip = $('recoChip'); chip.className = 'reco-chip'; chip.textContent = 'отметь 2 карты';
+        $('segBar').hidden = true;
+      } else {
+        lastComputing = true;
+        setWinChanceDisplay(null, true);
+        $('segBar').hidden = true;
+      }
+      renderComboNow();
+      debounceTimer = setTimeout(() => runLive(myGen), 160);
     }
 
     function updateComboPcts(hist, total) {
@@ -984,26 +1081,20 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       }
     }
 
-    async function runLive() {
-      const myGen = ++runGen;
-      updateComboPcts(null, 0);
-      lastHist = null; lastTotal = 0;
+    async function runLive(myGen) {
+      if (myGen !== runGen) return;
       if (state.hero.length < 2) {
-        lastEquity = null; lastComputing = false;
-        setEquityDisplay(null, false);
-        const chip = $('recoChip'); chip.className = 'reco-chip'; chip.textContent = 'отметь 2 карты';
-        $('segBar').hidden = true;
+        lastComputing = false;
         renderComboNow();
         return;
       }
+
       const iterations = Math.max(2000, Math.floor(Number($('iterInput').value) || 15000));
       lastComputing = true;
-      lastEquity = null;
-      setEquityDisplay(null, true);
       $('segBar').hidden = false;
       renderComboNow();
 
-      let win = 0, tie = 0, lose = 0, levelHist = {};
+      let win = 0, tie = 0, lose = 0, winChanceTotal = 0, levelHist = {};
       const BATCH = 2000;
       const batches = Math.ceil(iterations / BATCH);
 
@@ -1013,32 +1104,43 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
         for (let i = 0; i < n; i++) {
           const r = E.playOnce(state.hero, state.table, state.opponents);
           if (r.result === 'win') win++; else if (r.result === 'tie') tie++; else lose++;
+          winChanceTotal += r.winChance;
           levelHist[r.heroLevel] = (levelHist[r.heroLevel] || 0) + 1;
         }
         if (myGen !== runGen) return;
+
         const done = Math.min(iterations, (b + 1) * BATCH);
-        const curEq = (win + tie / 2) / done;
-        lastEquity = curEq;
+        const w = win / done, t = tie / done, l = lose / done;
+        const curWinChance = winChanceTotal / done;
+        lastWinChance = curWinChance;
         lastHist = Object.assign({}, levelHist);
         lastTotal = done;
-        // keep lastComputing true until финальный батч
-        setEquityDisplay(curEq, false);
-        paintSeg(win / done, tie / done, lose / done);
+        // Верхний индикатор обновляется по батчам; строка комбинации честно
+        // остаётся в состоянии «считаю» до завершения всей выборки.
+        setWinChanceDisplay(curWinChance, false);
+        paintSeg(w, t, l);
+        paintOutcome(w, t, l);
         updateComboPcts(levelHist, done);
         renderComboNow();
         await new Promise(res => setTimeout(res, 0)); // не блокируем UI
       }
       if (myGen !== runGen) return;
 
+      const w = win / iterations, t = tie / iterations, l = lose / iterations;
+      const winChance = winChanceTotal / iterations;
       updateComboPcts(levelHist, iterations);
-      const equity = (win + tie / 2) / iterations;
-      lastEquity = equity; lastHist = levelHist; lastTotal = iterations; lastComputing = false;
-      paintSeg(win / iterations, tie / iterations, lose / iterations);
+      lastWinChance = winChance;
+      lastHist = levelHist; lastTotal = iterations; lastComputing = false;
+      setWinChanceDisplay(winChance, false);
+      paintSeg(w, t, l);
+      paintOutcome(w, t, l);
       renderComboNow();
+
       const pot = Number($('potInput').value), bet = Number($('betInput').value);
-      const rec = E.recommend(equity,
-        isFinite(pot) && pot > 0 ? pot : undefined,
-        isFinite(bet) && bet > 0 ? bet : undefined);
+      // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
+      const rec = E.recommend(winChance,
+        isFinite(bet) && bet > 0 ? bet : undefined,
+        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
       const chip = $('recoChip');
       chip.className = 'reco-chip ' + rec.cls;
       chip.textContent = rec.emoji + ' ' + rec.text;
@@ -1048,7 +1150,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       $('segWin').style.width = (w * 100) + '%';
       $('segTie').style.width = (t * 100) + '%';
       $('segLose').style.width = (l * 100) + '%';
-      $('segBar').title = 'победа ' + (w*100).toFixed(1) + '% · ничья ' + (t*100).toFixed(1) + '% · проигрыш ' + (l*100).toFixed(1) + '%';
+      $('segBar').title = 'сильнее ' + (w*100).toFixed(1) + '% · равная комбинация (удача) ' +
+        (t*100).toFixed(1) + '% · слабее ' + (l*100).toFixed(1) + '%';
     }
 
     // --- Сайдбар с комбинациями (+ живые % по симуляции) --------------------
@@ -1091,11 +1194,28 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       state.hero = []; state.table = [];
       renderGrid(); renderSelection(); renderComboNow(); scheduleRecompute();
     });
+    function opponentLabel(n) {
+      if (n === 1) return 'соперник';
+      if (n >= 2 && n <= 4) return 'соперника';
+      return 'соперников';
+    }
+
+    function updatePlayerNote() {
+      const note = $('playerNote');
+      if (!note) return;
+      note.textContent = 'Вы + ' + state.opponents + ' ' + opponentLabel(state.opponents);
+      note.title = 'В расчёт добавлено ' + state.opponents + ' ' + opponentLabel(state.opponents) + '.';
+    }
+
     document.querySelectorAll('.stepper-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        state.opponents = Number(btn.dataset.opp);
+        const players = Number(btn.dataset.players);
+        if (!Number.isInteger(players) || players < 2) return;
+        state.opponents = players - 1;
         document.querySelectorAll('.stepper-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active'); scheduleRecompute();
+        btn.classList.add('active');
+        updatePlayerNote();
+        scheduleRecompute();
       });
     });
     // --- Современные степперы вместо системных стрелок -----------------------
@@ -1159,10 +1279,11 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
     // --- Старт ---------------------------------------------------------------
     buildRules();
+    updatePlayerNote();
     renderGrid();
     renderSelection();
     renderComboNow();
-    setEquityDisplay(null, false);
+    setWinChanceDisplay(null, false);
   } catch (err) {
     showErr(err && err.message ? err.message : String(err));
   }

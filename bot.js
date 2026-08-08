@@ -49,14 +49,16 @@ function parseArgs(text) {
 }
 
 function formatResult(s, opponents) {
+  const winChance = typeof s.winChance === 'number' ? s.winChance : s.equity;
   let out = '';
-  out += '🎯 Equity (шанс выиграть): ' + (s.equity * 100).toFixed(1) + '%\n';
-  out += '✅ Победа: ' + (s.winPct * 100).toFixed(1) + '%\n';
-  out += '🤝 Ничья: ' + (s.tiePct * 100).toFixed(1) + '%\n';
-  out += '❌ Проигрыш: ' + (s.losePct * 100).toFixed(1) + '%\n';
-  const rec = E.recommend(s.equity);
+  out += '🎯 Шанс победить: ' + (winChance * 100).toFixed(1) + '%\n';
+  out += '✅ Комбинация сильнее: ' + (s.winPct * 100).toFixed(1) + '%\n';
+  out += '🎲 Равная комбинация (решает удача): ' + (s.tiePct * 100).toFixed(1) + '%\n';
+  out += '❌ Комбинация слабее: ' + (s.losePct * 100).toFixed(1) + '%\n';
+  const rec = E.recommend(winChance);
   out += '\n' + rec.emoji + ' ' + rec.text + '\n';
-  out += 'Итераций: ' + s.iterations.toLocaleString('ru') + ', соперников: ' + opponents;
+  out += 'Итераций: ' + s.iterations.toLocaleString('ru') + ', соперников: ' + opponents +
+    ', игроков всего: ' + (opponents + 1);
   return out;
 }
 

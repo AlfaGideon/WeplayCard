@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WeplayCard — Помощник дуэли лжи</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <!-- Ловитель ошибок: если JS упадёт — покажем баннер, а не пустоту -->
@@ -22,7 +22,7 @@
           <span class="sb-dot"></span>
           <h2>Комбинации</h2>
         </div>
-        <div class="combo-caption">Частота твоей финальной комбинации (по симуляции)</div>
+        <div class="combo-caption">Частота твоей финальной комбинации (не вероятность победы)</div>
         <div class="combo-list" id="rulesBody"></div>
         <div class="sidebar-note">
           Колода: 4 цвета × 1…9 = 36 карт. 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
@@ -44,9 +44,9 @@
             <span>Дуэль лжи · помощник за столом</span>
           </div>
         </div>
-        <div class="top-equity" id="topEquity" title="Шанс выиграть (equity)">
+        <div class="top-equity" id="topEquity" title="Шанс стать единственным победителем; при равной комбинации исход решает удача">
           <span class="te-val" id="topVal">—</span>
-          <span class="te-cap">equity</span>
+          <span class="te-cap">шанс победить</span>
         </div>
       </header>
 
@@ -59,15 +59,20 @@
           </div>
         </div>
         <div class="hand-right">
-          <div class="equity-readout">
+          <div class="equity-readout" title="Шанс стать единственным победителем; при равной комбинации исход решает удача">
             <span class="er-value" id="ebValue">—</span>
-            <span class="er-cap">шанс выиграть</span>
+            <span class="er-cap">шанс победить</span>
           </div>
           <div class="reco-chip" id="recoChip">отметь 2 карты</div>
           <div class="seg" id="segBar" hidden>
             <div class="seg-win" id="segWin"></div>
             <div class="seg-tie" id="segTie"></div>
             <div class="seg-lose" id="segLose"></div>
+          </div>
+          <div class="outcome-breakdown" id="outcomeBreakdown" hidden aria-live="polite">
+            <span class="outcome-win" id="outWin">сильнее —</span>
+            <span class="outcome-tie" id="outTie">равная → удача —</span>
+            <span class="outcome-lose" id="outLose">слабее —</span>
           </div>
         </div>
       </section>
@@ -86,12 +91,15 @@
           <button class="seg-btn ghost" id="clearBtn">Очистить</button>
         </div>
         <div class="opts">
-          <div class="opt-group">
-            <span class="opt-label">Соперников</span>
-            <div class="stepper">
-              <button class="stepper-btn" data-opp="1">1</button>
-              <button class="stepper-btn" data-opp="2">2</button>
-              <button class="stepper-btn" data-opp="3">3</button>
+          <div class="opt-group players-group">
+            <div class="players-labels">
+              <span class="opt-label">Игроков за столом</span>
+              <span class="players-note" id="playerNote">Вы + 1 соперник</span>
+            </div>
+            <div class="stepper" role="group" aria-label="Всего игроков за столом">
+              <button class="stepper-btn active" data-players="2" title="2 игрока: вы и 1 соперник" aria-label="2 игрока: вы и 1 соперник">2</button>
+              <button class="stepper-btn" data-players="3" title="3 игрока: вы и 2 соперника" aria-label="3 игрока: вы и 2 соперника">3</button>
+              <button class="stepper-btn" data-players="4" title="4 игрока: вы и 3 соперника" aria-label="4 игрока: вы и 3 соперника">4</button>
             </div>
           </div>
           <div class="opt-group num-group">
@@ -150,7 +158,7 @@
     </main>
   </div>
 
-  <script src="engine.js?v=7"></script>
-  <script src="app.js?v=7"></script>
+  <script src="engine.js?v=8"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
