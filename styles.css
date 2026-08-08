@@ -78,6 +78,8 @@ body {
   transition: border-color .15s, transform .12s;
 }
 .combo-item:hover { border-color: var(--border-strong); transform: translateX(2px); }
+.combo-item.is-current { border-color: rgba(124,140,255,0.55); background: rgba(124,140,255,0.10); box-shadow: 0 0 0 1px rgba(124,140,255,0.25) inset, 0 4px 16px rgba(124,140,255,0.15); transform: translateX(2px); }
+.combo-item.is-current .combo-lvl { box-shadow: 0 0 0 3px rgba(124,140,255,0.30); }
 .combo-lvl {
   width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
   font-weight: 800; font-size: 13px; color: #fff; background: var(--grad);
@@ -158,6 +160,9 @@ body {
 .combo-now .cn-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
 .combo-now .cn-value { font-weight: 800; font-size: 14px; }
 .combo-now .cn-level { color: var(--muted); font-size: 12px; }
+.combo-now .cn-equity { font-size: 13px; font-weight: 700; }
+.combo-now .cn-freq { font-size: 12px; font-weight: 500; }
+.combo-now .cn-note { font-size: 12px; }
 .combo-now .pcard { width: 48px; height: 66px; flex: 0 0 auto; }
 .combo-now .pcard .center { font-size: 18px; }
 
@@ -178,10 +183,63 @@ body {
 .stepper-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .stepper-btn.active { background: var(--grad); color: #fff; }
 
+/* убираем системные стрелки у всех number */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
 .field { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 5px; }
 .field input { width: 92px; background: #0e1626; border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 10px; font-size: 13px; transition: border-color .15s, box-shadow .15s; }
 .field input::placeholder { color: #5b667e; }
 .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,140,255,0.25); }
+
+/* современные кастомные степперы для Итераций / Банк / Колл */
+.field--num { gap: 4px; }
+.field-label { font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); }
+.num-input {
+  display: flex; align-items: stretch;
+  background: #0e1626;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  height: 36px;
+  margin-top: 2px;
+  transition: border-color .18s, box-shadow .18s, background .18s, transform .12s;
+}
+.num-input:hover { border-color: var(--border-strong); background: #111d33; }
+.num-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,140,255,0.20), 0 8px 20px rgba(124,140,255,0.18);
+  background: #111d33;
+}
+.num-input input {
+  width: 86px; min-width: 0; flex: 1 1 auto;
+  background: transparent; border: none; border-radius: 0;
+  text-align: center; font-size: 13px; font-weight: 750;
+  font-variant-numeric: tabular-nums; letter-spacing: .2px;
+  padding: 0 6px; color: var(--text);
+  outline: none; box-shadow: none;
+}
+.num-input input:focus { border-color: transparent; box-shadow: none; }
+.num-input input::placeholder { color: #5b667e; font-weight: 600; }
+.num-btn {
+  width: 34px; flex: 0 0 34px;
+  display: grid; place-items: center;
+  background: rgba(255,255,255,0.035);
+  border: none; color: var(--muted);
+  cursor: pointer; user-select: none;
+  transition: background .15s, color .15s, transform .10s;
+}
+.num-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+.num-btn:active { background: var(--grad); color: #fff; transform: scale(0.96); }
+.num-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
+.num-btn:first-child { border-right: 1px solid var(--border); }
+.num-btn:last-child { border-left: 1px solid var(--border); }
+.num-group { gap: 12px; }
+@media (max-width: 640px) {
+  .num-input input { width: 72px; }
+  .num-group { gap: 8px; }
+}
 
 .hint { font-size: 12px; color: var(--muted); margin: 8px 0 12px; }
 

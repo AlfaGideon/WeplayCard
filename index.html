@@ -94,15 +94,42 @@
               <button class="stepper-btn" data-opp="3">3</button>
             </div>
           </div>
-          <div class="opt-group">
-            <label class="field">Итераций
-              <input type="number" id="iterInput" min="2000" step="1000" value="15000" />
+          <div class="opt-group num-group">
+            <label class="field field--num" for="iterInput">
+              <span class="field-label">Итераций</span>
+              <div class="num-input" data-input="iterInput">
+                <button class="num-btn" type="button" data-dir="-1" aria-label="меньше">
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                </button>
+                <input type="number" id="iterInput" min="2000" max="100000" step="1000" value="15000" inputmode="numeric" autocomplete="off" />
+                <button class="num-btn" type="button" data-dir="1" aria-label="больше">
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                </button>
+              </div>
             </label>
-            <label class="field">Банк
-              <input type="number" id="potInput" min="0" placeholder="—" />
+            <label class="field field--num" for="potInput">
+              <span class="field-label">Банк</span>
+              <div class="num-input" data-input="potInput">
+                <button class="num-btn" type="button" data-dir="-1" aria-label="меньше">
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                </button>
+                <input type="number" id="potInput" min="0" max="100000" step="10" placeholder="—" inputmode="numeric" autocomplete="off" />
+                <button class="num-btn" type="button" data-dir="1" aria-label="больше">
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                </button>
+              </div>
             </label>
-            <label class="field">Колл
-              <input type="number" id="betInput" min="0" placeholder="—" />
+            <label class="field field--num" for="betInput">
+              <span class="field-label">Колл</span>
+              <div class="num-input" data-input="betInput">
+                <button class="num-btn" type="button" data-dir="-1" aria-label="меньше">
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                </button>
+                <input type="number" id="betInput" min="0" max="100000" step="5" placeholder="—" inputmode="numeric" autocomplete="off" />
+                <button class="num-btn" type="button" data-dir="1" aria-label="больше">
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                </button>
+              </div>
             </label>
           </div>
         </div>

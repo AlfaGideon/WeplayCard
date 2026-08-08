@@ -159,6 +159,64 @@
     return { level, name: LEVEL_NAMES[level], score, cards: cards.slice() };
   }
 
+  // --- Оценка для <5 карт (префлоп / неполный борд) -----------------------
+  // Нужна чтобы показать Барашка/Кабана сразу после выбора 1-2 карманных.
+  // Для <5 стрит/флеш невозможны, остаются только сет/пары/старшая.
+  function evaluatePartial(cards) {
+    const n = cards ? cards.length : 0;
+    if (!n) return { level: 0, name: '—', score: [0], cards: [], desc: '' };
+    if (n === 1) {
+      return { level: 1, name: LEVEL_NAMES[1], score: [1, cards[0].v], cards: cards.slice(), desc: LEVEL_DESC[1] };
+    }
+    const valueCounts = {};
+    cards.forEach(function(c){ valueCounts[c.v] = (valueCounts[c.v] || 0) + 1; });
+    const groups = Object.keys(valueCounts).map(function(v){ return { v: +v, n: valueCounts[v] }; })
+      .sort(function(a,b){ return (b.n - a.n) || (b.v - a.v); });
+    let quad = null, trip = null, pairs = [];
+    groups.forEach(function(g){
+      if (g.n === 4) quad = g.v;
+      else if (g.n === 3) trip = g.v;
+      else if (g.n === 2) pairs.push(g.v);
+    });
+    pairs.sort(function(a,b){ return b - a; });
+    const singles = groups.filter(function(g){ return g.n === 1; }).map(function(g){ return g.v; }).sort(function(a,b){ return b - a; });
+    const descVals = cards.map(function(c){ return c.v; }).sort(function(a,b){ return b - a; });
+    const sortedCards = cards.slice().sort(function(a,b){ return b.v - a.v; });
+    let level, score, bestCards;
+    if (quad !== null) {
+      level = 8;
+      score = [8, quad].concat(singles);
+      bestCards = cards.filter(function(c){ return c.v === quad; }).concat(sortedCards.filter(function(c){ return c.v !== quad; }));
+    } else if (trip !== null) {
+      level = 4;
+      score = [4, trip].concat(singles);
+      bestCards = cards.filter(function(c){ return c.v === trip; }).concat(sortedCards.filter(function(c){ return c.v !== trip; }));
+    } else if (pairs.length >= 2) {
+      level = 3;
+      score = [3, pairs[0], pairs[1]].concat(singles);
+      bestCards = [];
+      pairs.forEach(function(pv){ cards.filter(function(c){ return c.v === pv; }).forEach(function(c){ bestCards.push(c); }); });
+      sortedCards.filter(function(c){ return pairs.indexOf(c.v) === -1; }).forEach(function(c){ bestCards.push(c); });
+    } else if (pairs.length === 1) {
+      level = 2;
+      score = [2, pairs[0]].concat(singles);
+      bestCards = cards.filter(function(c){ return c.v === pairs[0]; }).concat(sortedCards.filter(function(c){ return c.v !== pairs[0]; }));
+    } else {
+      level = 1;
+      score = [1].concat(descVals);
+      bestCards = sortedCards;
+    }
+    return { level: level, name: LEVEL_NAMES[level], score: score, cards: bestCards, desc: LEVEL_DESC[level] };
+  }
+
+  // Универсальная лучшая рука для любого количества карт (1..7)
+  // Для >=5 использует полный перебор по 5, для <5 — evaluatePartial
+  function bestHandAny(cards) {
+    if (!cards || !cards.length) return { level: 0, name: '—', score: [0], cards: [], desc: '' };
+    if (cards.length >= 5) return bestHand(cards);
+    return evaluatePartial(cards);
+  }
+
   // --- Лучшая 5-ка из 5..7 карт ---------------------------------------------
   // Возвращает лучший evaluate5 среди всех сочетаний по 5.
   function bestHand(cards) {
@@ -262,6 +320,6 @@
   return {
     COLORS, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
-    evaluate5, bestHand, playOnce, simulate, recommend,
+    evaluate5, evaluatePartial, bestHand, bestHandAny, playOnce, simulate, recommend,
   };
 });
