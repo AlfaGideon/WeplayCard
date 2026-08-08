@@ -20,7 +20,8 @@
     const on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
     const state = { mode: 'hero', hero: [], table: [], opponents: 1 };
     const MAX_HERO = 2, MAX_TABLE = 5;
-    const comboPctEls = {}; const comboBarEls = {};
+    const comboPctEls = {}; const comboBarEls = {}; const comboItemEls = {};
+    let lastEquity = null, lastHist = null, lastTotal = 0, lastComputing = false;
 
     // --- Карточка (.pcard) ---------------------------------------------------
     function pcardEl(card, asButton) {
@@ -95,25 +96,89 @@
       else state.table.forEach(c => tc.appendChild(pcardEl(c, false)));
     }
 
-    // --- Текущая комбинация (мгновенно) --------------------------------------
+    function highlightCurrent(level) {
+      for (let lvl = 1; lvl <= 9; lvl++) {
+        const item = comboItemEls[lvl];
+        if (!item) continue;
+        if (level && lvl === level) item.classList.add('is-current');
+        else item.classList.remove('is-current');
+      }
+    }
+
+    // --- Текущая комбинация (мгновенно + шанс победы) --------------------------
     function renderComboNow() {
       const box = $('comboNow');
-      const all = state.hero.concat(state.table);
-      if (state.hero.length < 2) {
-        box.innerHTML = '<span class="cn-label">Текущая комбинация</span><span class="cn-value muted">отметь свои 2 карты</span>';
-        return;
-      }
-      if (all.length < 5) {
-        box.innerHTML = '<span class="cn-label">Текущая комбинация</span><span class="cn-value muted">нужно минимум 3 общих (сейчас ' + all.length + ' из 7)</span>';
-        return;
-      }
-      const best = E.bestHand(all);
       box.innerHTML = '';
       const lab = document.createElement('span'); lab.className = 'cn-label'; lab.textContent = 'Текущая комбинация';
+
+      if (!state.hero.length) {
+        const m = document.createElement('span'); m.className = 'cn-value muted'; m.textContent = 'отметь свои 2 карты';
+        box.append(lab, m);
+        highlightCurrent(null);
+        return;
+      }
+
+      const all = state.hero.concat(state.table);
+      // Универсальная оценка: для <5 карт показываем Барашка/Кабана и т.п.
+      let best;
+      if (typeof E.bestHandAny === 'function') best = E.bestHandAny(all);
+      else if (all.length >= 5) best = E.bestHand(all);
+      else best = { level: 0, name: '—', cards: all.slice() };
+
+      if (!best || best.level === 0) {
+        const m = document.createElement('span'); m.className = 'cn-value muted';
+        m.textContent = state.hero.length === 1 ? 'выбрана 1 карта — добавь ещё одну' : 'выбери карты';
+        box.append(lab, m);
+        highlightCurrent(null);
+        return;
+      }
+
       const name = document.createElement('span'); name.className = 'cn-value'; name.textContent = best.name;
       const lvl = document.createElement('span'); lvl.className = 'cn-level'; lvl.textContent = 'ур. ' + best.level;
-      box.append(lab, name, lvl);
-      best.cards.forEach(c => box.appendChild(pcardEl(c, false)));
+
+      // Шанс победы для этой комбинации (общий equity из симуляции)
+      const eqEl = document.createElement('span'); eqEl.className = 'cn-equity';
+      if (state.hero.length < 2) {
+        eqEl.classList.add('muted');
+        eqEl.textContent = '· выбери 2 карты для расчёта';
+      } else if (lastComputing) {
+        eqEl.textContent = '· считаю…';
+        eqEl.style.color = 'var(--muted)';
+      } else if (lastEquity != null) {
+        const pct = (lastEquity * 100).toFixed(1);
+        eqEl.textContent = '· шанс выиграть ' + pct + '%';
+        if (lastEquity >= 0.66) eqEl.style.color = '#74f0a8';
+        else if (lastEquity >= 0.5) eqEl.style.color = '#9ec0ff';
+        else if (lastEquity >= 0.33) eqEl.style.color = '#ffcf8a';
+        else eqEl.style.color = '#ff9aa9';
+        // дополнительно: как часто эта комбинация выпадет в итоге
+        if (lastHist && lastTotal) {
+          const freq = ((lastHist[best.level] || 0) / lastTotal * 100);
+          const fr = document.createElement('span'); fr.className = 'cn-freq muted';
+          fr.textContent = ' · выпадет ' + freq.toFixed(1) + '%';
+          fr.style.marginLeft = '4px';
+          eqEl.appendChild(fr);
+        }
+      } else {
+        eqEl.textContent = '· —';
+        eqEl.classList.add('muted');
+      }
+
+      // подсказка про количество карт, если рука ещё неполная
+      let noteEl = null;
+      if (all.length < 5) {
+        noteEl = document.createElement('span'); noteEl.className = 'cn-note muted';
+        noteEl.textContent = '· ' + all.length + '/7 карт';
+      }
+
+      box.append(lab, name, lvl, eqEl);
+      if (noteEl) box.append(noteEl);
+
+      // показываем карты, формирующие комбинацию (для <5 — все, для 5+ — лучшая пятёрка)
+      const cardsToShow = (best.cards && best.cards.length) ? best.cards.slice(0, 5) : all.slice(0, 5);
+      cardsToShow.forEach(function(c){ box.appendChild(pcardEl(c, false)); });
+
+      highlightCurrent(best.level);
     }
 
     // --- Живой скоринг (Monte-Carlo, дебаунс + отмена) ----------------------
@@ -142,15 +207,21 @@
     async function runLive() {
       const myGen = ++runGen;
       updateComboPcts(null, 0);
+      lastHist = null; lastTotal = 0;
       if (state.hero.length < 2) {
+        lastEquity = null; lastComputing = false;
         setEquityDisplay(null, false);
         const chip = $('recoChip'); chip.className = 'reco-chip'; chip.textContent = 'отметь 2 карты';
         $('segBar').hidden = true;
+        renderComboNow();
         return;
       }
       const iterations = Math.max(2000, Math.floor(Number($('iterInput').value) || 15000));
+      lastComputing = true;
+      lastEquity = null;
       setEquityDisplay(null, true);
       $('segBar').hidden = false;
+      renderComboNow();
 
       let win = 0, tie = 0, lose = 0, levelHist = {};
       const BATCH = 2000;
@@ -166,16 +237,24 @@
         }
         if (myGen !== runGen) return;
         const done = Math.min(iterations, (b + 1) * BATCH);
-        setEquityDisplay((win + tie / 2) / done, false);
+        const curEq = (win + tie / 2) / done;
+        lastEquity = curEq;
+        lastHist = Object.assign({}, levelHist);
+        lastTotal = done;
+        // keep lastComputing true until финальный батч
+        setEquityDisplay(curEq, false);
         paintSeg(win / done, tie / done, lose / done);
         updateComboPcts(levelHist, done);
+        renderComboNow();
         await new Promise(res => setTimeout(res, 0)); // не блокируем UI
       }
       if (myGen !== runGen) return;
 
       updateComboPcts(levelHist, iterations);
       const equity = (win + tie / 2) / iterations;
+      lastEquity = equity; lastHist = levelHist; lastTotal = iterations; lastComputing = false;
       paintSeg(win / iterations, tie / iterations, lose / iterations);
+      renderComboNow();
       const pot = Number($('potInput').value), bet = Number($('betInput').value);
       const rec = E.recommend(equity,
         isFinite(pot) && pot > 0 ? pot : undefined,
@@ -198,6 +277,7 @@
       [9,8,7,6,5,4,3,2,1].forEach(lvl => {
         const item = document.createElement('div');
         item.className = 'combo-item';
+        item.dataset.lvl = lvl;
         item.innerHTML =
           '<div class="combo-lvl">' + lvl + '</div>' +
           '<div class="combo-meta">' +
@@ -209,6 +289,7 @@
         wrap.appendChild(item);
         comboPctEls[lvl] = item.querySelector('.combo-pct');
         comboBarEls[lvl] = item.querySelector('.combo-bar-fill');
+        comboItemEls[lvl] = item;
       });
     }
 
@@ -237,7 +318,64 @@
         btn.classList.add('active'); scheduleRecompute();
       });
     });
-    ['iterInput', 'potInput', 'betInput'].forEach(id => on(id, 'input', scheduleRecompute));
+    // --- Современные степперы вместо системных стрелок -----------------------
+    function stepInput(input, dir) {
+      const step = Number(input.step) || 1;
+      const min = input.min !== '' ? Number(input.min) : -Infinity;
+      const max = input.max !== '' ? Number(input.max) : Infinity;
+      let cur = input.value === '' ? NaN : Number(input.value);
+      if (!isFinite(cur)) {
+        if (input.id === 'iterInput') cur = isFinite(min) ? min : 2000;
+        else cur = isFinite(min) ? min : 0;
+        // для банка/колла пустое + клик вверх -> первый шаг, а не 0
+        if (input.value === '' && dir > 0) {
+          cur = Math.max(cur, step);
+          if (input.id === 'iterInput') cur = Math.max(cur, min);
+        }
+      } else {
+        cur = cur + dir * step;
+      }
+      const dec = (step.toString().split('.')[1] || '').length;
+      cur = Number(cur.toFixed(dec));
+      if (cur < min) cur = min;
+      if (cur > max) cur = max;
+      input.value = String(cur);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      if (input.animate) {
+        try { input.animate([{ transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 120, easing: 'ease-out' }); } catch(_){}
+      }
+    }
+    function initNumberSteppers() {
+      document.querySelectorAll('.num-input').forEach(wrap => {
+        const input = wrap.querySelector('input');
+        if (!input) return;
+        wrap.querySelectorAll('.num-btn').forEach(btn => {
+          const dir = Number(btn.dataset.dir) || 0;
+          btn.addEventListener('click', () => stepInput(input, dir));
+          // удержание для быстрого прокрута
+          let holdTimer = null, holdInt = null;
+          const startHold = () => {
+            holdTimer = setTimeout(() => {
+              holdInt = setInterval(() => stepInput(input, dir), 110);
+            }, 320);
+          };
+          const stopHold = () => { clearTimeout(holdTimer); clearInterval(holdInt); };
+          btn.addEventListener('mousedown', startHold);
+          btn.addEventListener('touchstart', startHold, { passive: true });
+          ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev => btn.addEventListener(ev, stopHold));
+        });
+        // блокируем случайное изменение колесом
+        input.addEventListener('wheel', (e) => { if (document.activeElement === input) e.preventDefault(); }, { passive: false });
+        // стрелки клавиатуры — делаем через наш степпер для консистентности
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowUp') { e.preventDefault(); stepInput(input, 1); }
+          if (e.key === 'ArrowDown') { e.preventDefault(); stepInput(input, -1); }
+        });
+      });
+      ['iterInput', 'potInput', 'betInput'].forEach(id => on(id, 'input', scheduleRecompute));
+    }
+    initNumberSteppers();
 
     // --- Старт ---------------------------------------------------------------
     buildRules();
