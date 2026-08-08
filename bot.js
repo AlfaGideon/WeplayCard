@@ -55,11 +55,11 @@ function formatResult(s, opponents) {
   out += '✅ Комбинация сильнее: ' + (s.winPct * 100).toFixed(1) + '%\n';
   out += '🎲 Равная комбинация (решает удача): ' + (s.tiePct * 100).toFixed(1) + '%\n';
   out += '❌ Комбинация слабее: ' + (s.losePct * 100).toFixed(1) + '%\n';
-  if (s.exact) out += '🔎 Точный перебор всех ' + s.iterations.toLocaleString('ru') + ' раскладов.\n';
+  if (s.exact) out += '🔎 Точный перебор всех ' + s.outcomes.toLocaleString('ru') + ' раскладов.\n';
   const rec = E.recommend(winChance);
   out += '\n' + rec.emoji + ' ' + rec.text + '\n';
-  out += 'Итераций: ' + s.iterations.toLocaleString('ru') + ', соперников: ' + opponents +
-    ', игроков всего: ' + (opponents + 1);
+  out += (s.exact ? 'Раскладов: ' : 'Итераций: ') + s.outcomes.toLocaleString('ru') +
+    ', соперников: ' + opponents + ', игроков всего: ' + (opponents + 1);
   return out;
 }
 
@@ -111,12 +111,20 @@ function main() {
       if (keys.has(k)) { bot.sendMessage(msg.chat.id, 'Одна и та же карта встречается дважды — проверь ввод.'); return; }
       keys.add(k);
     }
-    // На готовом столе для 1–2 соперников считаем каждый расклад закрытых
-    // карт, а не приближаем ответ случайной выборкой.
-    const s = table.length === 5 && parsed.opponents <= 2 && typeof E.simulateExact === 'function'
-      ? E.simulateExact({ heroHole: hero, community: table, numOpponents: parsed.opponents })
-      : E.simulate({ heroHole: hero, community: table, numOpponents: parsed.opponents, iterations: 20000 });
-    bot.sendMessage(msg.chat.id, formatResult(s, parsed.opponents));
+    // Не используем случайные итерации: либо полный перебор всех допустимых
+    // раскладов, либо честное сообщение, что до открытия карт их слишком много.
+    try {
+      const s = E.simulateExact({ heroHole: hero, community: table, numOpponents: parsed.opponents });
+      bot.sendMessage(msg.chat.id, formatResult(s, parsed.opponents));
+    } catch (err) {
+      if (err && err.code === 'EXACT_TOO_LARGE') {
+        const n = err.estimate.totalDeals.toLocaleString('ru');
+        bot.sendMessage(msg.chat.id,
+          'Точный перебор сейчас содержит ' + n + ' раскладов. Открой ещё общие карты и повтори /calc — я не буду подменять ответ случайными итерациями.');
+      } else {
+        bot.sendMessage(msg.chat.id, 'Не удалось выполнить точный расчёт: ' + ((err && err.message) || err));
+      }
+    }
   });
 }
 

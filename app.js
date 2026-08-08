@@ -24,7 +24,7 @@
     const MAX_HERO = 2, MAX_TABLE = 5;
     const comboPctEls = {}; const comboBarEls = {}; const comboItemEls = {};
     let lastWinChance = null, lastHist = null, lastTotal = 0, lastComputing = false;
-    let lastExact = false, lastExactDeals = 0;
+    let lastExact = false, lastExactDeals = 0, lastExactNotice = '';
 
     // --- Карточка (.pcard) ---------------------------------------------------
     function pcardEl(card, asButton) {
@@ -172,6 +172,10 @@
           fr.title = 'Вероятность, что твоя лучшая комбинация закончится этим уровнем. Это не шанс победить.';
           eqEl.appendChild(fr);
         }
+      } else if (lastExactNotice) {
+        eqEl.textContent = '· ' + lastExactNotice;
+        eqEl.classList.add('muted');
+        eqEl.title = 'Приложение не подменяет точный ответ случайными итерациями.';
       } else {
         eqEl.textContent = '· —';
         eqEl.classList.add('muted');
@@ -194,7 +198,7 @@
       highlightCurrent(best.level);
     }
 
-    // --- Живой скоринг (Monte-Carlo, дебаунс + отмена) ----------------------
+    // --- Точный скоринг (перебор, дебаунс + отмена) --------------------------
     // runGen увеличивается сразу при любом изменении. Поэтому старый расчёт
     // не успеет на миг нарисовать проценты для прежних карт/числа игроков.
     let runGen = 0, debounceTimer = null;
@@ -222,7 +226,7 @@
     function resetLiveResult() {
       lastWinChance = null;
       lastHist = null; lastTotal = 0;
-      lastExact = false; lastExactDeals = 0;
+      lastExact = false; lastExactDeals = 0; lastExactNotice = '';
       updateComboPcts(null, 0);
       clearOutcomeDisplay();
     }
@@ -269,17 +273,34 @@
     function finishLiveResult(result) {
       const winChance = result.winChance;
       lastWinChance = winChance;
+      const outcomes = result.outcomes;
       lastHist = result.levelHist;
-      lastTotal = result.iterations;
+      lastTotal = outcomes;
       lastExact = !!result.exact;
-      lastExactDeals = result.exact ? result.iterations : 0;
+      lastExactDeals = result.exact ? outcomes : 0;
       lastComputing = false;
-      updateComboPcts(result.levelHist, result.iterations);
+      updateComboPcts(result.levelHist, outcomes);
       setWinChanceDisplay(winChance, false);
       paintSeg(result.winPct, result.tiePct, result.losePct);
       paintOutcome(result.winPct, result.tiePct, result.losePct);
       renderComboNow();
       updateRecommendation(winChance);
+    }
+
+    function showExactLimit(err) {
+      const estimate = err && err.estimate;
+      const count = estimate && estimate.totalDeals ? estimate.totalDeals.toLocaleString('ru') : 'слишком много';
+      lastComputing = false;
+      lastExact = false; lastExactDeals = 0;
+      lastExactNotice = count + ' раскладов — открой ещё общие карты';
+      setWinChanceDisplay(null, false);
+      $('segBar').hidden = true;
+      clearOutcomeDisplay();
+      updateComboPcts(null, 0);
+      const chip = $('recoChip');
+      chip.className = 'reco-chip warn';
+      chip.textContent = '⚠ нужен точный перебор после открытия карт';
+      renderComboNow();
     }
 
     async function runLive(myGen) {
@@ -290,68 +311,31 @@
         return;
       }
 
-      const iterations = Math.max(2000, Math.floor(Number($('iterInput').value) || 15000));
       lastComputing = true;
-      $('segBar').hidden = false;
+      $('segBar').hidden = true;
       renderComboNow();
+      // Даём браузеру отрисовать «считаю», после чего запускаем полный перебор.
+      await new Promise(res => setTimeout(res, 0));
+      if (myGen !== runGen) return;
 
-      // На готовом столе против одного/двух соперников считаем каждый расклад
-      // точно, а не показываем случайное отклонение Монте-Карло.
-      if (state.table.length === 5 && state.opponents <= 2 && typeof E.simulateExact === 'function') {
-        await new Promise(res => setTimeout(res, 0));
-        if (myGen !== runGen) return;
+      try {
         const exact = E.simulateExact({
           heroHole: state.hero,
           community: state.table,
           numOpponents: state.opponents,
         });
         if (myGen !== runGen) return;
+        $('segBar').hidden = false;
         finishLiveResult(exact);
-        return;
-      }
-
-      let win = 0, tie = 0, lose = 0, winChanceTotal = 0, levelHist = {};
-      const BATCH = 2000;
-      const batches = Math.ceil(iterations / BATCH);
-
-      for (let b = 0; b < batches; b++) {
-        if (myGen !== runGen) return; // отменено новым действием
-        const n = Math.min(BATCH, iterations - b * BATCH);
-        for (let i = 0; i < n; i++) {
-          const r = E.playOnce(state.hero, state.table, state.opponents);
-          if (r.result === 'win') win++; else if (r.result === 'tie') tie++; else lose++;
-          winChanceTotal += r.winChance;
-          levelHist[r.heroLevel] = (levelHist[r.heroLevel] || 0) + 1;
-        }
+      } catch (err) {
         if (myGen !== runGen) return;
-
-        const done = Math.min(iterations, (b + 1) * BATCH);
-        const w = win / done, t = tie / done, l = lose / done;
-        const curWinChance = winChanceTotal / done;
-        lastWinChance = curWinChance;
-        lastHist = Object.assign({}, levelHist);
-        lastTotal = done;
-        // Верхний индикатор обновляется по батчам; строка комбинации честно
-        // остаётся в состоянии «считаю» до завершения всей выборки.
-        setWinChanceDisplay(curWinChance, false);
-        paintSeg(w, t, l);
-        paintOutcome(w, t, l);
-        updateComboPcts(levelHist, done);
-        renderComboNow();
-        await new Promise(res => setTimeout(res, 0)); // не блокируем UI
+        if (err && err.code === 'EXACT_TOO_LARGE') {
+          showExactLimit(err);
+          return;
+        }
+        lastComputing = false;
+        showErr(err && err.message ? err.message : String(err));
       }
-      if (myGen !== runGen) return;
-
-      const w = win / iterations, t = tie / iterations, l = lose / iterations;
-      finishLiveResult({
-        iterations,
-        exact: false,
-        winPct: w,
-        tiePct: t,
-        losePct: l,
-        winChance: winChanceTotal / iterations,
-        levelHist,
-      });
     }
 
     function paintSeg(w, t, l) {
@@ -362,7 +346,7 @@
         (t*100).toFixed(1) + '% · слабее ' + (l*100).toFixed(1) + '%';
     }
 
-    // --- Сайдбар с комбинациями (+ живые % по симуляции) --------------------
+    // --- Сайдбар с комбинациями (+ точные % по перебору) ----------------------
     function buildRules() {
       const wrap = $('rulesBody');
       [9,8,7,6,5,4,3,2,1].forEach(lvl => {
@@ -433,13 +417,9 @@
       const max = input.max !== '' ? Number(input.max) : Infinity;
       let cur = input.value === '' ? NaN : Number(input.value);
       if (!isFinite(cur)) {
-        if (input.id === 'iterInput') cur = isFinite(min) ? min : 2000;
-        else cur = isFinite(min) ? min : 0;
+        cur = isFinite(min) ? min : 0;
         // для банка/колла пустое + клик вверх -> первый шаг, а не 0
-        if (input.value === '' && dir > 0) {
-          cur = Math.max(cur, step);
-          if (input.id === 'iterInput') cur = Math.max(cur, min);
-        }
+        if (input.value === '' && dir > 0) cur = Math.max(cur, step);
       } else {
         cur = cur + dir * step;
       }
@@ -481,7 +461,7 @@
           if (e.key === 'ArrowDown') { e.preventDefault(); stepInput(input, -1); }
         });
       });
-      ['iterInput', 'potInput', 'betInput'].forEach(id => on(id, 'input', scheduleRecompute));
+      ['potInput', 'betInput'].forEach(id => on(id, 'input', scheduleRecompute));
     }
     initNumberSteppers();
 

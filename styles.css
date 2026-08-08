@@ -186,6 +186,8 @@ body {
 .players-group { gap: 9px; }
 .players-labels { display: flex; flex-direction: column; gap: 2px; }
 .players-note { color: #aeb8cf; font-size: 10px; line-height: 1.2; white-space: nowrap; }
+.exact-status { display: inline-flex; align-items: center; gap: 6px; align-self: center; color: #8df0ba; font-size: 11px; font-weight: 750; white-space: nowrap; padding: 6px 9px; border: 1px solid rgba(34,197,94,0.28); border-radius: 999px; background: rgba(34,197,94,0.07); }
+.exact-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.85); }
 .stepper { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 3px; }
 .stepper-btn { border: none; background: transparent; color: var(--muted); min-width: 38px; height: 32px; border-radius: 9px; cursor: pointer; font-weight: 700; transition: all .15s; }
 .stepper-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }

@@ -159,6 +159,92 @@
     return { level, name: LEVEL_NAMES[level], score, cards: cards.slice() };
   }
 
+  // --- Быстрый счёт для 5..7 карт -----------------------------------------
+  // В точном расчёте важен только массив score, а не сами пять карт. Полный
+  // перебор 21 пятёрки в bestHand() удобен для интерфейса, но слишком дорог для точного
+  // расчёта всех раскладов. Эта функция получает тот же score за один проход.
+  function scoreHand(cards) {
+    if (!cards || cards.length < 5) return bestHandAny(cards || []).score;
+
+    const rankCounts = new Array(10).fill(0);
+    const suitMasks = [0, 0, 0, 0];
+    const suitCounts = [0, 0, 0, 0];
+    for (const card of cards) {
+      rankCounts[card.v]++;
+      suitCounts[card.c]++;
+      suitMasks[card.c] |= (1 << card.v);
+    }
+
+    function straightHigh(mask) {
+      for (let high = 9; high >= 5; high--) {
+        let ok = true;
+        for (let v = high - 4; v <= high; v++) {
+          if ((mask & (1 << v)) === 0) { ok = false; break; }
+        }
+        if (ok) return high;
+      }
+      return 0;
+    }
+
+    let rankMask = 0;
+    for (let v = 1; v <= 9; v++) if (rankCounts[v]) rankMask |= (1 << v);
+
+    // Дракон: высший стрит в каждом цвете.
+    let straightFlushHigh = 0;
+    for (let c = 0; c < 4; c++) {
+      if (suitCounts[c] >= 5) straightFlushHigh = Math.max(straightFlushHigh, straightHigh(suitMasks[c]));
+    }
+    if (straightFlushHigh) return [9, straightFlushHigh];
+
+    let quad = 0;
+    for (let v = 9; v >= 1; v--) if (rankCounts[v] === 4) { quad = v; break; }
+    if (quad) {
+      for (let v = 9; v >= 1; v--) if (v !== quad && rankCounts[v]) return [8, quad, v];
+    }
+
+    // В этом наборе правил Медведь (флеш, 7) старше Носорога (фулл-хаус, 6).
+    for (let c = 0; c < 4; c++) {
+      if (suitCounts[c] >= 5) {
+        const values = [];
+        for (let v = 9; v >= 1 && values.length < 5; v--) if (suitMasks[c] & (1 << v)) values.push(v);
+        return [7].concat(values);
+      }
+    }
+
+    let trip = 0, pairForFull = 0;
+    for (let v = 9; v >= 1; v--) if (rankCounts[v] >= 3) { trip = v; break; }
+    if (trip) {
+      for (let v = 9; v >= 1; v--) {
+        if (v !== trip && rankCounts[v] >= 2) { pairForFull = v; break; }
+      }
+    }
+    if (trip && pairForFull) return [6, trip, pairForFull];
+
+    const straight = straightHigh(rankMask);
+    if (straight) return [5, straight];
+
+    if (trip) {
+      const kickers = [];
+      for (let v = 9; v >= 1 && kickers.length < 2; v--) if (v !== trip && rankCounts[v]) kickers.push(v);
+      return [4, trip].concat(kickers);
+    }
+
+    const pairs = [];
+    for (let v = 9; v >= 1; v--) if (rankCounts[v] >= 2) pairs.push(v);
+    if (pairs.length >= 2) {
+      for (let v = 9; v >= 1; v--) if (v !== pairs[0] && v !== pairs[1] && rankCounts[v]) return [3, pairs[0], pairs[1], v];
+    }
+    if (pairs.length === 1) {
+      const kickers = [];
+      for (let v = 9; v >= 1 && kickers.length < 3; v--) if (v !== pairs[0] && rankCounts[v]) kickers.push(v);
+      return [2, pairs[0]].concat(kickers);
+    }
+
+    const highs = [];
+    for (let v = 9; v >= 1 && highs.length < 5; v--) if (rankCounts[v]) highs.push(v);
+    return [1].concat(highs);
+  }
+
   // --- Оценка для <5 карт (префлоп / неполный борд) -----------------------
   // Нужна чтобы показать Барашка/Кабана сразу после выбора 1-2 карманных.
   // Для <5 стрит/флеш невозможны, остаются только сет/пары/старшая.
@@ -234,174 +320,228 @@
     return best;
   }
 
-  // --- Сравнение результатов вскрытия ----------------------------------------
-  // Возвращает вероятность героя стать единственным победителем в уже
-  // определившемся раскладе. При равных лучших руках игра выбирает победителя
-  // случайной дуэлью, поэтому шанс героя равен 1/N среди N равных рук.
-  function resolveShowdown(heroScore, opponentScores) {
-    const scores = [heroScore].concat(opponentScores);
-    let bestScore = scores[0];
-    for (let i = 1; i < scores.length; i++) {
-      if (compareScore(scores[i], bestScore) > 0) bestScore = scores[i];
-    }
-    let tiedPlayers = 0;
-    for (const score of scores) {
-      if (compareScore(score, bestScore) === 0) tiedPlayers++;
-    }
-    const heroIsWinner = compareScore(heroScore, bestScore) === 0;
+  // --- Точный расчёт всех допустимых раскладов ------------------------------
+  // Мы не делаем случайную выборку: для каждой возможной будущей доски считаем
+  // все совместимые пары соперников. Вместо перебора триллионов перестановок
+  // используем счёт непересекающихся пар по их отношению к руке героя.
+  const EXACT_MAX_SCORE_EVALS = 2500000;
+  const EXACT_MAX_MATCH_WORK = 80000000;
 
-    if (!heroIsWinner) return { result: 'lose', winChance: 0, tiedPlayers: 0 };
-    if (tiedPlayers === 1) return { result: 'win', winChance: 1, tiedPlayers: 1 };
-    return { result: 'tie', winChance: 1 / tiedPlayers, tiedPlayers };
+  function choose(n, k) {
+    if (k < 0 || k > n) return 0;
+    k = Math.min(k, n - k);
+    let result = 1;
+    for (let i = 1; i <= k; i++) result = result * (n - k + i) / i;
+    return result;
   }
 
-  // --- Один розыгрыш (Монте-Карло) ------------------------------------------
-  // Добирает недостающие общие карты и руки соперников из оставшейся колоды,
-  // сводит в показдаун и сравнивает. В «Дуэли лжи» банк не делится:
-  // при полностью равных комбинациях удача выбирает одного из N равных игроков.
-  // Поэтому winChance = 1/N — шанс героя стать единственным победителем в
-  // таком равном противостоянии, а не доля банка.
-  function playOnce(heroHole, community, numOpponents, rng) {
-    rng = rng || Math.random;
-    const opponents = Number.isInteger(numOpponents) ? numOpponents : 1;
-    if (opponents < 1) throw new Error('Нужен хотя бы один соперник');
-    if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
-    if (!community || community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
-
-    const usedCards = heroHole.concat(community);
-    const used = new Set(usedCards.map(cardKey));
-    if (used.size !== usedCards.length) throw new Error('Одна и та же известная карта указана дважды');
-
-    const cardsNeeded = (5 - community.length) + opponents * 2;
-    const remaining = buildDeck().filter(c => !used.has(cardKey(c)));
-    if (cardsNeeded > remaining.length) throw new Error('В колоде недостаточно карт для всех соперников');
-    shuffle(remaining, rng);
-
-    let p = 0;
-    const need = 5 - community.length;
-    const drawn = remaining.slice(p, p + need); p += need;
-    const fullCommunity = community.concat(drawn);
-
-    const heroScore = bestHand(heroHole.concat(fullCommunity)).score;
-    const opponentScores = [];
-    for (let i = 0; i < opponents; i++) {
-      const oppHole = remaining.slice(p, p + 2); p += 2;
-      opponentScores.push(bestHand(oppHole.concat(fullCommunity)).score);
-    }
-
-    const outcome = resolveShowdown(heroScore, opponentScores);
-    return Object.assign(outcome, { heroLevel: heroScore[0], heroScore });
-  }
-
-  // --- Полная симуляция (синхронно) -----------------------------------------
-  function simulate(opts) {
+  // Оценка объёма полного перебора. totalDeals — реальное число раздач;
+  // workUnits — число агрегированных операций после оптимизации пар рук.
+  function estimateExact(opts) {
     opts = opts || {};
-    const heroHole = opts.heroHole || [];
     const community = opts.community || [];
-    const numOpponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
-    const iterations = Number.isInteger(opts.iterations) && opts.iterations > 0 ? opts.iterations : 20000;
-    const rng = opts.rng || Math.random;
-
-    let win = 0, tie = 0, lose = 0, winChanceTotal = 0;
-    const levelHist = {};
-    const levelWins = {}; // чистые победы по уровню финальной руки героя
-
-    for (let i = 0; i < iterations; i++) {
-      const r = playOnce(heroHole, community, numOpponents, rng);
-      if (r.result === 'win') { win++; levelWins[r.heroLevel] = (levelWins[r.heroLevel] || 0) + 1; }
-      else if (r.result === 'tie') tie++;
-      else lose++;
-      winChanceTotal += r.winChance;
-      levelHist[r.heroLevel] = (levelHist[r.heroLevel] || 0) + 1;
+    const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
+    const knownCommunity = community.length;
+    if (knownCommunity < 0 || knownCommunity > 5 || opponents < 1 || opponents > 3) {
+      return { supported: false, totalDeals: 0, scoreEvals: 0, matchWork: 0 };
     }
-
-    // При равных руках один победитель выбирается удачей. Например, при
-    // равенстве героя с двумя соперниками его шанс победить в этом исходе — 1/3.
-    const winChance = winChanceTotal / iterations;
+    const unknownBeforeBoard = 34 - knownCommunity; // 36 - 2 карты героя - общие
+    const boardToDraw = 5 - knownCommunity;
+    const boardWays = choose(unknownBeforeBoard, boardToDraw);
+    let cardsAfterBoard = unknownBeforeBoard - boardToDraw; // всегда 29
+    let handsWays = 1;
+    for (let i = 0; i < opponents; i++) {
+      handsWays *= choose(cardsAfterBoard, 2);
+      cardsAfterBoard -= 2;
+    }
+    const pairsPerBoard = choose(29, 2);
+    // Для 2 соперников второй счёт рук агрегируется по первой паре; для 3
+    // нужно рассмотреть совместимые первые две пары и агрегировать третью.
+    const matchWorkPerBoard = opponents === 3 ? pairsPerBoard * choose(27, 2) : pairsPerBoard;
+    const scoreEvals = boardWays * pairsPerBoard;
+    const matchWork = boardWays * matchWorkPerBoard;
     return {
-      iterations,
-      win, tie, lose,
-      winPct: win / iterations,       // победа более сильной комбинацией
-      tiePct: tie / iterations,       // равные комбинации до случайной дуэли
-      losePct: lose / iterations,
-      winChance,
-      // Оставляем alias для совместимости с предыдущими версиями API.
-      equity: winChance,
-      levelHist,
-      levelWins,
+      supported: scoreEvals <= EXACT_MAX_SCORE_EVALS && matchWork <= EXACT_MAX_MATCH_WORK,
+      totalDeals: boardWays * handsWays,
+      boardWays,
+      scoreEvals,
+      matchWork,
+      knownCommunity,
+      opponents,
     };
   }
 
-  // --- Точный расчёт на готовом столе ---------------------------------------
-  // Когда все 5 общих карт известны, нет причин вносить погрешность Монте-Карло.
-  // Для одного/двух соперников перебираем все допустимые пары их закрытых карт.
-  // При трёх соперниках вариантов слишком много для мгновенного браузерного
-  // расчёта, поэтому вызывающий код продолжает использовать simulate().
+  function exactLimitError(estimate) {
+    const err = new Error('Точный перебор слишком велик для мгновенного расчёта');
+    err.code = 'EXACT_TOO_LARGE';
+    err.estimate = estimate;
+    return err;
+  }
+
+  function forEachCombination(items, count, callback) {
+    if (count === 0) { callback([]); return; }
+    const selected = new Array(count);
+    (function visit(start, depth) {
+      if (depth === count) { callback(selected.slice()); return; }
+      for (let i = start; i <= items.length - (count - depth); i++) {
+        selected[depth] = i;
+        visit(i + 1, depth + 1);
+      }
+    })(0, 0);
+  }
+
+  // Считает результаты для одной полностью открытой доски. В remaining всегда
+  // 29 карт; тип пары: 0 — слабее героя, 1 — равна герою, 2 — сильнее героя.
+  function countFinalBoard(heroScore, remaining, opponents, board) {
+    const n = remaining.length;
+    const pairTypes = Array.from({ length: n }, () => new Int8Array(n));
+    const degrees = [new Int16Array(n), new Int16Array(n), new Int16Array(n)];
+    const typeTotals = [0, 0, 0];
+    const pairs = [];
+
+    for (let a = 0; a < n; a++) {
+      for (let b = a + 1; b < n; b++) {
+        const cmp = compareScore(heroScore, scoreHand([remaining[a], remaining[b]].concat(board)));
+        const type = cmp > 0 ? 0 : (cmp === 0 ? 1 : 2);
+        pairTypes[a][b] = pairTypes[b][a] = type;
+        degrees[type][a]++; degrees[type][b]++; typeTotals[type]++;
+        pairs.push([a, b, type]);
+      }
+    }
+
+    let win = 0, tie = 0, lose = 0, winChanceTotal = 0;
+    if (opponents === 1) {
+      win = typeTotals[0];
+      tie = typeTotals[1];
+      lose = typeTotals[2];
+      winChanceTotal = win + tie / 2;
+    } else if (opponents === 2) {
+      for (const first of pairs) {
+        const a = first[0], b = first[1], type = first[2];
+        const available0 = typeTotals[0] - degrees[0][a] - degrees[0][b] + (type === 0 ? 1 : 0);
+        const available1 = typeTotals[1] - degrees[1][a] - degrees[1][b] + (type === 1 ? 1 : 0);
+        const available2 = typeTotals[2] - degrees[2][a] - degrees[2][b] + (type === 2 ? 1 : 0);
+        if (type === 2) {
+          lose += available0 + available1 + available2;
+        } else if (type === 0) {
+          win += available0;
+          tie += available1;
+          lose += available2;
+          winChanceTotal += available0 + available1 / 2;
+        } else {
+          tie += available0 + available1;
+          lose += available2;
+          // Вторая равная пара означает 3 равных монстра: шанс героя 1/3.
+          winChanceTotal += available0 / 2 + available1 / 3;
+        }
+      }
+    } else {
+      // Три соперника: фиксируем две непересекающиеся пары, а третью считаем
+      // по степеням графа. Это заменяет 42 751 800 сравнений на ~142 506.
+      for (const first of pairs) {
+        const a = first[0], b = first[1], type1 = first[2];
+        for (const second of pairs) {
+          const c = second[0], d = second[1], type2 = second[2];
+          if (a === c || a === d || b === c || b === d) continue;
+
+          const internal0 = (type1 === 0 ? 1 : 0) + (type2 === 0 ? 1 : 0) +
+            (pairTypes[a][c] === 0 ? 1 : 0) + (pairTypes[a][d] === 0 ? 1 : 0) +
+            (pairTypes[b][c] === 0 ? 1 : 0) + (pairTypes[b][d] === 0 ? 1 : 0);
+          const internal1 = (type1 === 1 ? 1 : 0) + (type2 === 1 ? 1 : 0) +
+            (pairTypes[a][c] === 1 ? 1 : 0) + (pairTypes[a][d] === 1 ? 1 : 0) +
+            (pairTypes[b][c] === 1 ? 1 : 0) + (pairTypes[b][d] === 1 ? 1 : 0);
+          const internal2 = 6 - internal0 - internal1;
+          const available0 = typeTotals[0] - degrees[0][a] - degrees[0][b] - degrees[0][c] - degrees[0][d] + internal0;
+          const available1 = typeTotals[1] - degrees[1][a] - degrees[1][b] - degrees[1][c] - degrees[1][d] + internal1;
+          const available2 = typeTotals[2] - degrees[2][a] - degrees[2][b] - degrees[2][c] - degrees[2][d] + internal2;
+
+          if (type1 === 2 || type2 === 2) {
+            lose += available0 + available1 + available2;
+            continue;
+          }
+          const baseTies = (type1 === 1 ? 1 : 0) + (type2 === 1 ? 1 : 0);
+          if (baseTies === 0) {
+            win += available0;
+            tie += available1;
+            lose += available2;
+            winChanceTotal += available0 + available1 / 2;
+          } else if (baseTies === 1) {
+            tie += available0 + available1;
+            lose += available2;
+            winChanceTotal += available0 / 2 + available1 / 3;
+          } else {
+            tie += available0 + available1;
+            lose += available2;
+            winChanceTotal += available0 / 3 + available1 / 4;
+          }
+        }
+      }
+    }
+    return { win, tie, lose, winChanceTotal };
+  }
+
+  // Перебирает все будущие общие карты и все совместимые руки 1–3 соперников.
+  // Если расчёт физически слишком велик для браузера, он честно сообщает об
+  // этом, а не подменяет ответ случайными 15 000 итерациями.
   function simulateExact(opts) {
     opts = opts || {};
     const heroHole = opts.heroHole || [];
     const community = opts.community || [];
     const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
     if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
-    if (!community || community.length !== 5) throw new Error('Для точного расчёта нужны все 5 общих карт');
-    if (opponents < 1 || opponents > 2) throw new Error('Точный расчёт доступен для 1 или 2 соперников');
+    if (!community || community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
+    if (opponents < 1 || opponents > 3) throw new Error('Точный расчёт доступен для 1–3 соперников');
 
     const usedCards = heroHole.concat(community);
     const used = new Set(usedCards.map(cardKey));
     if (used.size !== usedCards.length) throw new Error('Одна и та же известная карта указана дважды');
-    const remaining = buildDeck().filter(c => !used.has(cardKey(c)));
-    const heroScore = bestHand(heroHole.concat(community)).score;
+    const estimate = estimateExact({ community, numOpponents: opponents });
+    if (!estimate.supported) throw exactLimitError(estimate);
 
-    // Оцениваем каждую возможную пару соперника ровно один раз. На готовом
-    // столе её сила не меняется, так что вложенный перебор делает только
-    // сравнения счёта, а не десятки тысяч повторных bestHand().
-    const pairs = [];
-    for (let a = 0; a < remaining.length; a++) {
-      for (let b = a + 1; b < remaining.length; b++) {
-        pairs.push({ a, b, score: bestHand([remaining[a], remaining[b]].concat(community)).score });
-      }
-    }
-
+    const unknown = buildDeck().filter(c => !used.has(cardKey(c)));
+    const boardToDraw = 5 - community.length;
     let win = 0, tie = 0, lose = 0, winChanceTotal = 0, total = 0;
+    const levelHist = {};
     const levelWins = {};
-    function tally(outcome) {
-      total++;
-      if (outcome.result === 'win') {
-        win++;
-        levelWins[heroScore[0]] = (levelWins[heroScore[0]] || 0) + 1;
-      } else if (outcome.result === 'tie') {
-        tie++;
-      } else {
-        lose++;
-      }
-      winChanceTotal += outcome.winChance;
-    }
+    const selected = new Uint8Array(unknown.length);
 
-    if (opponents === 1) {
-      for (const pair of pairs) tally(resolveShowdown(heroScore, [pair.score]));
-    } else {
-      // Пары принадлежат разным соперникам, поэтому не могут использовать одну
-      // и ту же карту. Порядок пар соответствует двум различимым соперникам.
-      for (const first of pairs) {
-        for (const second of pairs) {
-          if (first.a === second.a || first.a === second.b ||
-              first.b === second.a || first.b === second.b) continue;
-          tally(resolveShowdown(heroScore, [first.score, second.score]));
-        }
-      }
+    forEachCombination(unknown, boardToDraw, function (drawnIndexes) {
+      const fullBoard = community.slice();
+      for (const index of drawnIndexes) { selected[index] = 1; fullBoard.push(unknown[index]); }
+      const remaining = [];
+      for (let i = 0; i < unknown.length; i++) if (!selected[i]) remaining.push(unknown[i]);
+      const heroScore = scoreHand(heroHole.concat(fullBoard));
+      const counted = countFinalBoard(heroScore, remaining, opponents, fullBoard);
+      const boardTotal = counted.win + counted.tie + counted.lose;
+      win += counted.win;
+      tie += counted.tie;
+      lose += counted.lose;
+      winChanceTotal += counted.winChanceTotal;
+      total += boardTotal;
+      const level = heroScore[0];
+      levelHist[level] = (levelHist[level] || 0) + boardTotal;
+      levelWins[level] = (levelWins[level] || 0) + counted.win;
+      for (const index of drawnIndexes) selected[index] = 0;
+    });
+
+    // Проверка инварианта: агрегирование обязано покрыть ровно всё пространство
+    // раздач, без пропусков и повторных карт.
+    if (total !== estimate.totalDeals) {
+      throw new Error('Внутренняя ошибка точного перебора: число раскладов не совпало');
     }
 
     const winChance = winChanceTotal / total;
     return {
-      iterations: total,
+      outcomes: total,
       exact: true,
+      estimate,
       win, tie, lose,
       winPct: win / total,
       tiePct: tie / total,
       losePct: lose / total,
       winChance,
       equity: winChance, // совместимость со старым API
-      levelHist: { [heroScore[0]]: total },
+      levelHist,
       levelWins,
     };
   }
@@ -432,6 +572,6 @@
   return {
     COLORS, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
-    evaluate5, evaluatePartial, bestHand, bestHandAny, playOnce, simulate, simulateExact, recommend,
+    evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, recommend,
   };
 });

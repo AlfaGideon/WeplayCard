@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WeplayCard — Помощник дуэли лжи</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
   <!-- Ловитель ошибок: если JS упадёт — покажем баннер, а не пустоту -->
@@ -102,19 +102,10 @@
               <button class="stepper-btn" data-players="4" title="4 игрока: вы и 3 соперника" aria-label="4 игрока: вы и 3 соперника">4</button>
             </div>
           </div>
+          <div class="exact-status" title="Все доступные расклады перебираются точно; случайные итерации не используются">
+            <span class="exact-status-dot"></span>Точный перебор
+          </div>
           <div class="opt-group num-group">
-            <label class="field field--num" for="iterInput">
-              <span class="field-label">Итераций</span>
-              <div class="num-input" data-input="iterInput">
-                <button class="num-btn" type="button" data-dir="-1" aria-label="меньше">
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-                </button>
-                <input type="number" id="iterInput" min="2000" max="100000" step="1000" value="15000" inputmode="numeric" autocomplete="off" />
-                <button class="num-btn" type="button" data-dir="1" aria-label="больше">
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-                </button>
-              </div>
-            </label>
             <label class="field field--num" for="potInput">
               <span class="field-label">Банк</span>
               <div class="num-input" data-input="potInput">
@@ -158,7 +149,7 @@
     </main>
   </div>
 
-  <script src="engine.js?v=9"></script>
-  <script src="app.js?v=9"></script>
+  <script src="engine.js?v=12"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
