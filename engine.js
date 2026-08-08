@@ -546,6 +546,25 @@
     };
   }
 
+  // --- Математика колла ------------------------------------------------------
+  // Банк указан ДО колла, betToCall — цена решения. winChance уже учитывает
+  // случайную дуэль при равной комбинации, поэтому это честная вероятность
+  // забрать банк единолично. EV показывает результат нового решения, без
+  // ранее вложенных фишек: выигрыш = банк, проигрыш = цена колла.
+  function analyzeCall(winChance, betToCall, pot) {
+    if (typeof winChance !== 'number' || !isFinite(winChance) || winChance < 0 || winChance > 1 ||
+        typeof betToCall !== 'number' || !isFinite(betToCall) || betToCall <= 0 ||
+        typeof pot !== 'number' || !isFinite(pot) || pot < 0) return null;
+    const requiredEquity = betToCall / (pot + betToCall);
+    const expectedValue = winChance * (pot + betToCall) - betToCall;
+    return {
+      requiredEquity,
+      expectedValue,
+      equityEdge: winChance - requiredEquity,
+      finalPot: pot + betToCall,
+    };
+  }
+
   // --- Рекомендация по ставке -----------------------------------------------
   // winChance — шанс стать единственным победителем (0..1). betToCall — сумма
   // колла, pot — банк до колла. Возвращает текст и класс для подсветки.
@@ -572,6 +591,6 @@
   return {
     COLORS, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
-    evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, recommend,
+    evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, analyzeCall, recommend,
   };
 });

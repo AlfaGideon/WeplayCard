@@ -248,6 +248,7 @@
       lastExact = false; lastExactDeals = 0; lastExactNotice = '';
       updateComboPcts(null, 0);
       clearOutcomeDisplay();
+      const callMath = $('callMath'); if (callMath) callMath.hidden = true;
     }
 
     function scheduleRecompute() {
@@ -278,15 +279,54 @@
       }
     }
 
+    function callInputs() {
+      const potRaw = $('potInput').value, betRaw = $('betInput').value;
+      const pot = Number(potRaw), bet = Number(betRaw);
+      return {
+        pot: potRaw !== '' && isFinite(pot) && pot >= 0 ? pot : null,
+        bet: betRaw !== '' && isFinite(bet) && bet > 0 ? bet : null,
+      };
+    }
+
+    function formatChips(value) {
+      const abs = Math.abs(value);
+      const digits = abs >= 100 ? 0 : (abs >= 10 ? 1 : 2);
+      return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(abs);
+    }
+
+    // Показывает не только вердикт, но и границу окупаемости с ожидаемым
+    // результатом. Так игрок видит, насколько решение устойчиво к ошибке в %.
+    function renderCallMath(winChance) {
+      const panel = $('callMath');
+      if (!panel) return;
+      const input = callInputs();
+      const math = input.pot != null && input.bet != null && typeof E.analyzeCall === 'function'
+        ? E.analyzeCall(winChance, input.bet, input.pot) : null;
+      panel.hidden = !math;
+      if (!math) return;
+
+      const edgePp = math.equityEdge * 100;
+      const ev = math.expectedValue;
+      $('callNeed').textContent = (math.requiredEquity * 100).toFixed(1) + '%';
+      $('callEdge').textContent = (edgePp >= 0 ? '+' : '−') + Math.abs(edgePp).toFixed(1) + ' п.п.';
+      $('callEv').textContent = (ev >= 0 ? '+' : '−') + formatChips(ev);
+      $('callEdge').className = edgePp >= 0 ? 'positive' : 'negative';
+      $('callEv').className = ev >= 0 ? 'positive' : 'negative';
+      $('callMathNote').textContent = ev >= 0
+        ? 'Колл выгоден в среднем: при банке ' + formatChips(input.pot) + ' и колле ' + formatChips(input.bet) + ' его EV положительный.'
+        : 'Колл убыточен в среднем: для нулевого EV нужно минимум ' + (math.requiredEquity * 100).toFixed(1) + '%.';
+    }
+
     function updateRecommendation(winChance) {
-      const pot = Number($('potInput').value), bet = Number($('betInput').value);
+      const input = callInputs();
       // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
       const rec = E.recommend(winChance,
-        isFinite(bet) && bet > 0 ? bet : undefined,
-        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
+        input.bet != null ? input.bet : undefined,
+        input.pot != null ? input.pot : undefined);
       const chip = $('recoChip');
       chip.className = 'reco-chip ' + rec.cls;
       chip.textContent = rec.emoji + ' ' + rec.text;
+      renderCallMath(winChance);
     }
 
     function finishLiveResult(result) {
@@ -472,7 +512,11 @@
           if (e.key === 'ArrowDown') { e.preventDefault(); stepInput(input, -1); }
         });
       });
-      ['potInput', 'betInput'].forEach(id => on(id, 'input', scheduleRecompute));
+      // Банк и колл не меняют карты, поэтому пересчитывать миллионы раскладов
+      // не нужно: мгновенно обновляем только решение и EV.
+      ['potInput', 'betInput'].forEach(id => on(id, 'input', () => {
+        if (lastWinChance != null) updateRecommendation(lastWinChance);
+      }));
     }
     initNumberSteppers();
 

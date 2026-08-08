@@ -258,6 +258,24 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .num-group { gap: 8px; }
 }
 
+/* Пот-оддсы в действии: порог, запас и EV решения о колле */
+.call-math {
+  display: grid; grid-template-columns: minmax(150px, 1.35fr) repeat(3, minmax(110px, 1fr));
+  gap: 10px; align-items: stretch; margin: 10px 0 4px; padding: 11px 14px;
+  background: linear-gradient(100deg, rgba(79,139,255,.12), rgba(45,212,167,.07));
+  border: 1px solid rgba(111,157,255,.28); border-radius: var(--radius);
+}
+.call-math[hidden] { display: none; }
+.call-math-heading { display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.call-math-kicker { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: #cbd9ff; }
+.call-math-caption, .call-math-stat span, .call-math-note { font-size: 10px; color: var(--muted); }
+.call-math-stat { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,.10); }
+.call-math-stat b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.call-math-ev b { font-size: 19px; }
+.call-math .positive { color: #74f0a8; }
+.call-math .negative { color: #ff9aa9; }
+.call-math-note { grid-column: 1 / -1; margin: -1px 0 0; line-height: 1.35; }
+
 .hint { font-size: 11px; color: var(--muted); margin: 4px 0 7px; }
 
 /* Колода — гибкая сетка 9 колонок: карты подстраиваются под ширину, скроллбара нет */
@@ -309,6 +327,9 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .hand-right { align-items: flex-start; border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 12px; }
   .equity-readout { text-align: left; }
   .outcome-breakdown { justify-content: flex-start; flex-wrap: wrap; }
+  .call-math { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .call-math-heading { grid-column: 1 / -1; }
+  .call-math-stat { padding: 8px 0 0; border-left: none; border-top: 1px solid rgba(255,255,255,.10); }
   .workspace { padding: 16px 14px 32px; }
   .deck { gap: 6px; max-width: 100%; }
   .hand-cards .pcard { width: 48px; height: 66px; }
@@ -443,6 +464,27 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           </div>
         </div>
       </div>
+
+      <!-- Решение по ставке: превращает процент в понятный порог и EV -->
+      <section class="call-math" id="callMath" hidden aria-live="polite">
+        <div class="call-math-heading">
+          <span class="call-math-kicker">Решение по коллу</span>
+          <span class="call-math-caption">Банк указан до колла</span>
+        </div>
+        <div class="call-math-stat">
+          <span>Нужно для колла</span>
+          <b id="callNeed">—</b>
+        </div>
+        <div class="call-math-stat">
+          <span>Запас к порогу</span>
+          <b id="callEdge">—</b>
+        </div>
+        <div class="call-math-stat call-math-ev">
+          <span>Ожидаемый результат колла</span>
+          <b id="callEv">—</b>
+        </div>
+        <p class="call-math-note" id="callMathNote"></p>
+      </section>
 
       <p class="hint" id="modeHint">Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).</p>
 
@@ -1008,6 +1050,25 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     };
   }
 
+  // --- Математика колла ------------------------------------------------------
+  // Банк указан ДО колла, betToCall — цена решения. winChance уже учитывает
+  // случайную дуэль при равной комбинации, поэтому это честная вероятность
+  // забрать банк единолично. EV показывает результат нового решения, без
+  // ранее вложенных фишек: выигрыш = банк, проигрыш = цена колла.
+  function analyzeCall(winChance, betToCall, pot) {
+    if (typeof winChance !== 'number' || !isFinite(winChance) || winChance < 0 || winChance > 1 ||
+        typeof betToCall !== 'number' || !isFinite(betToCall) || betToCall <= 0 ||
+        typeof pot !== 'number' || !isFinite(pot) || pot < 0) return null;
+    const requiredEquity = betToCall / (pot + betToCall);
+    const expectedValue = winChance * (pot + betToCall) - betToCall;
+    return {
+      requiredEquity,
+      expectedValue,
+      equityEdge: winChance - requiredEquity,
+      finalPot: pot + betToCall,
+    };
+  }
+
   // --- Рекомендация по ставке -----------------------------------------------
   // winChance — шанс стать единственным победителем (0..1). betToCall — сумма
   // колла, pot — банк до колла. Возвращает текст и класс для подсветки.
@@ -1034,7 +1095,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   return {
     COLORS, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
-    evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, recommend,
+    evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, analyzeCall, recommend,
   };
 });
 
@@ -1290,6 +1351,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       lastExact = false; lastExactDeals = 0; lastExactNotice = '';
       updateComboPcts(null, 0);
       clearOutcomeDisplay();
+      const callMath = $('callMath'); if (callMath) callMath.hidden = true;
     }
 
     function scheduleRecompute() {
@@ -1320,15 +1382,54 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       }
     }
 
+    function callInputs() {
+      const potRaw = $('potInput').value, betRaw = $('betInput').value;
+      const pot = Number(potRaw), bet = Number(betRaw);
+      return {
+        pot: potRaw !== '' && isFinite(pot) && pot >= 0 ? pot : null,
+        bet: betRaw !== '' && isFinite(bet) && bet > 0 ? bet : null,
+      };
+    }
+
+    function formatChips(value) {
+      const abs = Math.abs(value);
+      const digits = abs >= 100 ? 0 : (abs >= 10 ? 1 : 2);
+      return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(abs);
+    }
+
+    // Показывает не только вердикт, но и границу окупаемости с ожидаемым
+    // результатом. Так игрок видит, насколько решение устойчиво к ошибке в %.
+    function renderCallMath(winChance) {
+      const panel = $('callMath');
+      if (!panel) return;
+      const input = callInputs();
+      const math = input.pot != null && input.bet != null && typeof E.analyzeCall === 'function'
+        ? E.analyzeCall(winChance, input.bet, input.pot) : null;
+      panel.hidden = !math;
+      if (!math) return;
+
+      const edgePp = math.equityEdge * 100;
+      const ev = math.expectedValue;
+      $('callNeed').textContent = (math.requiredEquity * 100).toFixed(1) + '%';
+      $('callEdge').textContent = (edgePp >= 0 ? '+' : '−') + Math.abs(edgePp).toFixed(1) + ' п.п.';
+      $('callEv').textContent = (ev >= 0 ? '+' : '−') + formatChips(ev);
+      $('callEdge').className = edgePp >= 0 ? 'positive' : 'negative';
+      $('callEv').className = ev >= 0 ? 'positive' : 'negative';
+      $('callMathNote').textContent = ev >= 0
+        ? 'Колл выгоден в среднем: при банке ' + formatChips(input.pot) + ' и колле ' + formatChips(input.bet) + ' его EV положительный.'
+        : 'Колл убыточен в среднем: для нулевого EV нужно минимум ' + (math.requiredEquity * 100).toFixed(1) + '%.';
+    }
+
     function updateRecommendation(winChance) {
-      const pot = Number($('potInput').value), bet = Number($('betInput').value);
+      const input = callInputs();
       // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
       const rec = E.recommend(winChance,
-        isFinite(bet) && bet > 0 ? bet : undefined,
-        isFinite(pot) && pot >= 0 && $('potInput').value !== '' ? pot : undefined);
+        input.bet != null ? input.bet : undefined,
+        input.pot != null ? input.pot : undefined);
       const chip = $('recoChip');
       chip.className = 'reco-chip ' + rec.cls;
       chip.textContent = rec.emoji + ' ' + rec.text;
+      renderCallMath(winChance);
     }
 
     function finishLiveResult(result) {
@@ -1514,7 +1615,11 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           if (e.key === 'ArrowDown') { e.preventDefault(); stepInput(input, -1); }
         });
       });
-      ['potInput', 'betInput'].forEach(id => on(id, 'input', scheduleRecompute));
+      // Банк и колл не меняют карты, поэтому пересчитывать миллионы раскладов
+      // не нужно: мгновенно обновляем только решение и EV.
+      ['potInput', 'betInput'].forEach(id => on(id, 'input', () => {
+        if (lastWinChance != null) updateRecommendation(lastWinChance);
+      }));
     }
     initNumberSteppers();
 

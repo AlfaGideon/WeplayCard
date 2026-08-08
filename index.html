@@ -134,6 +134,27 @@
         </div>
       </div>
 
+      <!-- Решение по ставке: превращает процент в понятный порог и EV -->
+      <section class="call-math" id="callMath" hidden aria-live="polite">
+        <div class="call-math-heading">
+          <span class="call-math-kicker">Решение по коллу</span>
+          <span class="call-math-caption">Банк указан до колла</span>
+        </div>
+        <div class="call-math-stat">
+          <span>Нужно для колла</span>
+          <b id="callNeed">—</b>
+        </div>
+        <div class="call-math-stat">
+          <span>Запас к порогу</span>
+          <b id="callEdge">—</b>
+        </div>
+        <div class="call-math-stat call-math-ev">
+          <span>Ожидаемый результат колла</span>
+          <b id="callEv">—</b>
+        </div>
+        <p class="call-math-note" id="callMathNote"></p>
+      </section>
+
       <p class="hint" id="modeHint">Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).</p>
 
       <!-- Колода -->
