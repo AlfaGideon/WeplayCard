@@ -124,6 +124,24 @@ const trash = P.simulateEstimate({ heroHole: [C(1,7), C(2,2)], community: [], nu
 check('префлоп: A-K одномастные сильнее 7-2 разномастных',
   aks.winChance > trash.winChance + 0.25);
 
+// --- до 10 игроков за столом (9 соперников) ----------------------------------
+// Точный перебор реализован для 1–3 соперников; при 4+ честно отказываемся
+// и даём статистическую оценку.
+const manyEst = P.estimateExact({ community: [], numOpponents: 9 });
+check('10 игроков: полный перебор честно сообщает, что раскладов слишком много',
+  manyEst.supported === false && manyEst.opponents === 9 && manyEst.totalDeals > 0);
+let manyRefused = false;
+try { P.simulateExact({ heroHole: [C(0,14), C(0,13)], community: [], numOpponents: 9 }); }
+catch (err) { manyRefused = err.code === 'EXACT_TOO_LARGE'; }
+check('10 игроков: simulateExact отклоняет перебор, не подменяя выборкой', manyRefused);
+const nineOpps = P.simulateEstimate({ heroHole: [C(0,14), C(0,13)], community: [], numOpponents: 9, samples: 8000, rng: estRng });
+check('10 игроков: оценка по 8 000 раздач даёт допустимый шанс',
+  nineOpps.exact === false && nineOpps.outcomes === 8000 &&
+  nineOpps.winChance >= 0 && nineOpps.winChance <= 1 &&
+  nineOpps.confidence95 >= 0 && nineOpps.confidence95 < 0.05);
+check('10 игроков: шанс A-K против девятерых заметно ниже, чем один на один',
+  aks.winChance > nineOpps.winChance + 0.25);
+
 // --- равные руки: удача выбирает одного --------------------------------------
 // На столе готовый роял-флеш, личные карты ничего не меняют → 3 равных монстра.
 const sharedBoard = [C(0,14), C(0,13), C(0,12), C(0,11), C(0,10)];

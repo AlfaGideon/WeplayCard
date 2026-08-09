@@ -351,12 +351,14 @@
 
   // Оценка объёма полного перебора. totalDeals — реальное число раздач;
   // workUnits — число агрегированных операций после оптимизации пар рук.
+  // Полный перебор реализован для 1–3 соперников; при большем числе игроков
+  // раскладов так много, что честный ответ даёт только статистическая оценка.
   function estimateExact(opts) {
     opts = opts || {};
     const community = opts.community || [];
     const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
     const knownCommunity = community.length;
-    if (knownCommunity < 0 || knownCommunity > 5 || opponents < 1 || opponents > 3) {
+    if (knownCommunity < 0 || knownCommunity > 5 || opponents < 1 || opponents > 9) {
       return { supported: false, totalDeals: 0, scoreEvals: 0, matchWork: 0 };
     }
     const unknownBeforeBoard = 50 - knownCommunity; // 52 - 2 карты героя - общие
@@ -368,14 +370,19 @@
       handsWays *= choose(cardsAfterBoard, 2);
       cardsAfterBoard -= 2;
     }
-    const pairsPerBoard = choose(45, 2);
-    // Для 2 соперников второй счёт рук агрегируется по первой паре; для 3
-    // нужно рассмотреть совместимые первые две пары и агрегировать третью.
-    const matchWorkPerBoard = opponents === 3 ? pairsPerBoard * choose(43, 2) : pairsPerBoard;
-    const scoreEvals = boardWays * pairsPerBoard;
-    const matchWork = boardWays * matchWorkPerBoard;
+    let supported = opponents <= 3;
+    let scoreEvals = 0, matchWork = 0;
+    if (supported) {
+      const pairsPerBoard = choose(45, 2);
+      // Для 2 соперников второй счёт рук агрегируется по первой паре; для 3
+      // нужно рассмотреть совместимые первые две пары и агрегировать третью.
+      const matchWorkPerBoard = opponents === 3 ? pairsPerBoard * choose(43, 2) : pairsPerBoard;
+      scoreEvals = boardWays * pairsPerBoard;
+      matchWork = boardWays * matchWorkPerBoard;
+      supported = scoreEvals <= EXACT_MAX_SCORE_EVALS && matchWork <= EXACT_MAX_MATCH_WORK;
+    }
     return {
-      supported: scoreEvals <= EXACT_MAX_SCORE_EVALS && matchWork <= EXACT_MAX_MATCH_WORK,
+      supported,
       totalDeals: boardWays * handsWays,
       boardWays,
       scoreEvals,
@@ -502,7 +509,7 @@
     const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
     if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
     if (!community || community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
-    if (opponents < 1 || opponents > 3) throw new Error('Точный расчёт доступен для 1–3 соперников');
+    if (opponents < 1 || opponents > 9) throw new Error('Расчёт доступен для 1–9 соперников');
 
     const usedCards = heroHole.concat(community);
     const used = new Set(usedCards.map(cardKey));
@@ -589,7 +596,7 @@
     const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
     if (heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
     if (community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
-    if (opponents < 1 || opponents > 3) throw new Error('Оценка доступна для 1–3 соперников');
+    if (opponents < 1 || opponents > 9) throw new Error('Оценка доступна для 1–9 соперников');
     if (samples < 1000) throw new Error('Для оценки нужно минимум 1 000 раздач');
 
     const usedCards = heroHole.concat(community);

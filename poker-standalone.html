@@ -466,13 +466,19 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
         <div class="opts">
           <div class="opt-group players-group">
             <div class="players-labels">
-              <span class="opt-label">Игроков за столом</span>
+              <span class="opt-label">Игроков за столом (2–10)</span>
               <span class="players-note" id="playerNote">Вы + 1 соперник</span>
             </div>
             <div class="stepper" role="group" aria-label="Всего игроков за столом">
               <button class="stepper-btn active" data-players="2" title="2 игрока: вы и 1 соперник" aria-label="2 игрока: вы и 1 соперник">2</button>
               <button class="stepper-btn" data-players="3" title="3 игрока: вы и 2 соперника" aria-label="3 игрока: вы и 2 соперника">3</button>
               <button class="stepper-btn" data-players="4" title="4 игрока: вы и 3 соперника" aria-label="4 игрока: вы и 3 соперника">4</button>
+              <button class="stepper-btn" data-players="5" title="5 игроков: вы и 4 соперника" aria-label="5 игроков: вы и 4 соперника">5</button>
+              <button class="stepper-btn" data-players="6" title="6 игроков: вы и 5 соперников" aria-label="6 игроков: вы и 5 соперников">6</button>
+              <button class="stepper-btn" data-players="7" title="7 игроков: вы и 6 соперников" aria-label="7 игроков: вы и 6 соперников">7</button>
+              <button class="stepper-btn" data-players="8" title="8 игроков: вы и 7 соперников" aria-label="8 игроков: вы и 7 соперников">8</button>
+              <button class="stepper-btn" data-players="9" title="9 игроков: вы и 8 соперников" aria-label="9 игроков: вы и 8 соперников">9</button>
+              <button class="stepper-btn" data-players="10" title="10 игроков: вы и 9 соперников" aria-label="10 игроков: вы и 9 соперников">10</button>
             </div>
           </div>
           <div class="exact-status" id="calcStatus" title="Все доступные расклады перебираются точно; случайные итерации не используются">
@@ -897,12 +903,14 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
   // Оценка объёма полного перебора. totalDeals — реальное число раздач;
   // workUnits — число агрегированных операций после оптимизации пар рук.
+  // Полный перебор реализован для 1–3 соперников; при большем числе игроков
+  // раскладов так много, что честный ответ даёт только статистическая оценка.
   function estimateExact(opts) {
     opts = opts || {};
     const community = opts.community || [];
     const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
     const knownCommunity = community.length;
-    if (knownCommunity < 0 || knownCommunity > 5 || opponents < 1 || opponents > 3) {
+    if (knownCommunity < 0 || knownCommunity > 5 || opponents < 1 || opponents > 9) {
       return { supported: false, totalDeals: 0, scoreEvals: 0, matchWork: 0 };
     }
     const unknownBeforeBoard = 50 - knownCommunity; // 52 - 2 карты героя - общие
@@ -914,14 +922,19 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       handsWays *= choose(cardsAfterBoard, 2);
       cardsAfterBoard -= 2;
     }
-    const pairsPerBoard = choose(45, 2);
-    // Для 2 соперников второй счёт рук агрегируется по первой паре; для 3
-    // нужно рассмотреть совместимые первые две пары и агрегировать третью.
-    const matchWorkPerBoard = opponents === 3 ? pairsPerBoard * choose(43, 2) : pairsPerBoard;
-    const scoreEvals = boardWays * pairsPerBoard;
-    const matchWork = boardWays * matchWorkPerBoard;
+    let supported = opponents <= 3;
+    let scoreEvals = 0, matchWork = 0;
+    if (supported) {
+      const pairsPerBoard = choose(45, 2);
+      // Для 2 соперников второй счёт рук агрегируется по первой паре; для 3
+      // нужно рассмотреть совместимые первые две пары и агрегировать третью.
+      const matchWorkPerBoard = opponents === 3 ? pairsPerBoard * choose(43, 2) : pairsPerBoard;
+      scoreEvals = boardWays * pairsPerBoard;
+      matchWork = boardWays * matchWorkPerBoard;
+      supported = scoreEvals <= EXACT_MAX_SCORE_EVALS && matchWork <= EXACT_MAX_MATCH_WORK;
+    }
     return {
-      supported: scoreEvals <= EXACT_MAX_SCORE_EVALS && matchWork <= EXACT_MAX_MATCH_WORK,
+      supported,
       totalDeals: boardWays * handsWays,
       boardWays,
       scoreEvals,
@@ -1048,7 +1061,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
     if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
     if (!community || community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
-    if (opponents < 1 || opponents > 3) throw new Error('Точный расчёт доступен для 1–3 соперников');
+    if (opponents < 1 || opponents > 9) throw new Error('Расчёт доступен для 1–9 соперников');
 
     const usedCards = heroHole.concat(community);
     const used = new Set(usedCards.map(cardKey));
@@ -1135,7 +1148,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
     if (heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
     if (community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
-    if (opponents < 1 || opponents > 3) throw new Error('Оценка доступна для 1–3 соперников');
+    if (opponents < 1 || opponents > 9) throw new Error('Оценка доступна для 1–9 соперников');
     if (samples < 1000) throw new Error('Для оценки нужно минимум 1 000 раздач');
 
     const usedCards = heroHole.concat(community);
