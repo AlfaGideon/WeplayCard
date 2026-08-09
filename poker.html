@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WeplayCard — Помощник дуэли лжи</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <title>WeplayCard — Помощник покера</title>
   <link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body>
@@ -25,7 +24,7 @@
         <div class="combo-caption">Частота твоей финальной комбинации (не вероятность победы)</div>
         <div class="combo-list" id="rulesBody"></div>
         <div class="sidebar-note">
-          Колода: 4 цвета × 1…9 = 36 карт. 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
+          Колода: 52 карты — 4 масти (♠ ♥ ♦ ♣) × 13 рангов (2…A). 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
         </div>
         <div class="sidebar-note warn">
           ⚠️ Честная математика: блеф и чтение оппонента не учитываются.
@@ -41,12 +40,12 @@
           <div class="logo">♠</div>
           <div class="brand-text">
             <b>WeplayCard</b>
-            <span>Дуэль лжи · помощник за столом</span>
+            <span>Покер · помощник за столом</span>
           </div>
         </div>
         <nav class="nav-tabs" aria-label="Выбор игры">
-          <a class="nav-tab active" href="index.html" aria-current="page">Дуэль лжи</a>
-          <a class="nav-tab" href="poker.html">Покер</a>
+          <a class="nav-tab" href="index.html">Дуэль лжи</a>
+          <a class="nav-tab active" href="poker.html" aria-current="page">Покер</a>
         </nav>
         <div class="top-equity" id="topEquity" title="Шанс стать единственным победителем; при равной комбинации исход решает удача">
           <span class="te-val" id="topVal">—</span>
@@ -97,13 +96,19 @@
         <div class="opts">
           <div class="opt-group players-group">
             <div class="players-labels">
-              <span class="opt-label">Игроков за столом</span>
+              <span class="opt-label">Игроков за столом (2–10)</span>
               <span class="players-note" id="playerNote">Вы + 1 соперник</span>
             </div>
             <div class="stepper" role="group" aria-label="Всего игроков за столом">
               <button class="stepper-btn active" data-players="2" title="2 игрока: вы и 1 соперник" aria-label="2 игрока: вы и 1 соперник">2</button>
               <button class="stepper-btn" data-players="3" title="3 игрока: вы и 2 соперника" aria-label="3 игрока: вы и 2 соперника">3</button>
               <button class="stepper-btn" data-players="4" title="4 игрока: вы и 3 соперника" aria-label="4 игрока: вы и 3 соперника">4</button>
+              <button class="stepper-btn" data-players="5" title="5 игроков: вы и 4 соперника" aria-label="5 игроков: вы и 4 соперника">5</button>
+              <button class="stepper-btn" data-players="6" title="6 игроков: вы и 5 соперников" aria-label="6 игроков: вы и 5 соперников">6</button>
+              <button class="stepper-btn" data-players="7" title="7 игроков: вы и 6 соперников" aria-label="7 игроков: вы и 6 соперников">7</button>
+              <button class="stepper-btn" data-players="8" title="8 игроков: вы и 7 соперников" aria-label="8 игроков: вы и 7 соперников">8</button>
+              <button class="stepper-btn" data-players="9" title="9 игроков: вы и 8 соперников" aria-label="9 игроков: вы и 8 соперников">9</button>
+              <button class="stepper-btn" data-players="10" title="10 игроков: вы и 9 соперников" aria-label="10 игроков: вы и 9 соперников">10</button>
             </div>
           </div>
           <div class="exact-status" id="calcStatus" title="Все доступные расклады перебираются точно; случайные итерации не используются">
@@ -161,8 +166,8 @@
 
       <p class="hint" id="modeHint">Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).</p>
 
-      <!-- Колода -->
-      <div class="deck" id="cardGrid"></div>
+      <!-- Колода 52 карты: 13 рангов × 4 масти -->
+      <div class="deck deck--poker" id="cardGrid"></div>
 
       <!-- Стол -->
       <section class="table-row">
@@ -174,7 +179,7 @@
     </main>
   </div>
 
-  <script src="engine.js?v=14"></script>
-  <script src="app.js?v=14"></script>
+  <script src="poker-engine.js?v=2"></script>
+  <script src="poker-app.js?v=2"></script>
 </body>
 </html>

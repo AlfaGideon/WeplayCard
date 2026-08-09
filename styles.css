@@ -330,3 +330,39 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .hand-cards .pcard { width: 48px; height: 66px; }
   .hand-cards .pcard .center { font-size: 18px; }
 }
+
+/* ===== Навигация между страницами (Дуэль лжи ↔ Покер) ===== */
+.nav-tabs {
+  display: inline-flex; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px; gap: 3px; flex: 0 0 auto;
+}
+.nav-tab {
+  border: none; background: transparent; color: var(--muted);
+  padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  font-size: 12px; font-weight: 700; text-decoration: none; transition: all .18s;
+}
+.nav-tab:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.nav-tab.active { background: var(--grad); color: #fff; box-shadow: 0 4px 14px rgba(123,92,255,0.4); }
+@media (max-width: 640px) {
+  .nav-tab { padding: 5px 10px; font-size: 11px; }
+}
+
+/* ===== Покер: колода 52 карты (13 рангов × 4 масти) ===== */
+.deck--poker { grid-template-columns: repeat(13, minmax(0, 1fr)); max-width: 780px; }
+.deck--poker .pcard .corner { font-size: 10px; gap: 2px; top: 3px; left: 4px; }
+.deck--poker .pcard .corner.br { top: auto; bottom: 3px; right: 4px; }
+.deck--poker .pcard .center { font-size: 17px; }
+@media (max-width: 640px) {
+  .deck--poker { gap: 4px; }
+  .deck--poker .pcard .corner { font-size: 8px; }
+  .deck--poker .pcard .center { font-size: 13px; }
+}
+
+/* Масти: черные ♠♣ и красные ♥♦ */
+.pcard.is-red { --c: #d64545; }
+.pcard.is-black { --c: #131a2b; }
+.pcard .corner .pip.poker-suit {
+  width: auto; height: auto; border-radius: 0; background: transparent; font-size: 11px; line-height: 1;
+}
+.deck--poker .pcard .corner .pip.poker-suit { font-size: 9px; }
+.hand-cards .pcard .center { color: var(--c); }

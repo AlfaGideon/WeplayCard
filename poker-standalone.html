@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WeplayCard — Помощник дуэли лжи</title>
+  <title>WeplayCard — Помощник покера</title>
   <style>
 :root {
   --bg-0: #070b16;
@@ -394,7 +394,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
         <div class="combo-caption">Частота твоей финальной комбинации (не вероятность победы)</div>
         <div class="combo-list" id="rulesBody"></div>
         <div class="sidebar-note">
-          Колода: 4 цвета × 1…9 = 36 карт. 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
+          Колода: 52 карты — 4 масти (♠ ♥ ♦ ♣) × 13 рангов (2…A). 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
         </div>
         <div class="sidebar-note warn">
           ⚠️ Честная математика: блеф и чтение оппонента не учитываются.
@@ -410,12 +410,12 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
           <div class="logo">♠</div>
           <div class="brand-text">
             <b>WeplayCard</b>
-            <span>Дуэль лжи · помощник за столом</span>
+            <span>Покер · помощник за столом</span>
           </div>
         </div>
         <nav class="nav-tabs" aria-label="Выбор игры">
-          <a class="nav-tab active" href="weplaycard-standalone.html" aria-current="page">Дуэль лжи</a>
-          <a class="nav-tab" href="poker-standalone.html">Покер</a>
+          <a class="nav-tab" href="weplaycard-standalone.html">Дуэль лжи</a>
+          <a class="nav-tab active" href="poker-standalone.html" aria-current="page">Покер</a>
         </nav>
         <div class="top-equity" id="topEquity" title="Шанс стать единственным победителем; при равной комбинации исход решает удача">
           <span class="te-val" id="topVal">—</span>
@@ -466,13 +466,19 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
         <div class="opts">
           <div class="opt-group players-group">
             <div class="players-labels">
-              <span class="opt-label">Игроков за столом</span>
+              <span class="opt-label">Игроков за столом (2–10)</span>
               <span class="players-note" id="playerNote">Вы + 1 соперник</span>
             </div>
             <div class="stepper" role="group" aria-label="Всего игроков за столом">
               <button class="stepper-btn active" data-players="2" title="2 игрока: вы и 1 соперник" aria-label="2 игрока: вы и 1 соперник">2</button>
               <button class="stepper-btn" data-players="3" title="3 игрока: вы и 2 соперника" aria-label="3 игрока: вы и 2 соперника">3</button>
               <button class="stepper-btn" data-players="4" title="4 игрока: вы и 3 соперника" aria-label="4 игрока: вы и 3 соперника">4</button>
+              <button class="stepper-btn" data-players="5" title="5 игроков: вы и 4 соперника" aria-label="5 игроков: вы и 4 соперника">5</button>
+              <button class="stepper-btn" data-players="6" title="6 игроков: вы и 5 соперников" aria-label="6 игроков: вы и 5 соперников">6</button>
+              <button class="stepper-btn" data-players="7" title="7 игроков: вы и 6 соперников" aria-label="7 игроков: вы и 6 соперников">7</button>
+              <button class="stepper-btn" data-players="8" title="8 игроков: вы и 7 соперников" aria-label="8 игроков: вы и 7 соперников">8</button>
+              <button class="stepper-btn" data-players="9" title="9 игроков: вы и 8 соперников" aria-label="9 игроков: вы и 8 соперников">9</button>
+              <button class="stepper-btn" data-players="10" title="10 игроков: вы и 9 соперников" aria-label="10 игроков: вы и 9 соперников">10</button>
             </div>
           </div>
           <div class="exact-status" id="calcStatus" title="Все доступные расклады перебираются точно; случайные итерации не используются">
@@ -530,8 +536,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
       <p class="hint" id="modeHint">Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).</p>
 
-      <!-- Колода -->
-      <div class="deck" id="cardGrid"></div>
+      <!-- Колода 52 карты: 13 рангов × 4 масти -->
+      <div class="deck deck--poker" id="cardGrid"></div>
 
       <!-- Стол -->
       <section class="table-row">
@@ -545,67 +551,83 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
   <script>
 /*
- * engine.js — ядро игры "WeplayCard" (Дуэль лжи).
+ * poker-engine.js — ядро покера (Техасский Холдем, колода 52 карты).
  *
  * Это чистая логика без DOM, работает и в браузере, и в Node.js.
- * В браузере доступно как window.WeplayEngine, в Node — через require('./engine.js').
+ * В браузере доступно как window.PokerEngine, в Node — через require('./poker-engine.js').
  *
- * Колода: 4 цвета (Синий, Красный, Жёлтый, Фиолетовый) × значения 1..9 = 36 карт.
+ * Колода: 4 масти (Пики, Червы, Бубны, Крести) × 13 рангов (2..A) = 52 карты.
  * Раздача как в Холдеме: 2 карты в руки + 5 общих (3, потом 1, потом 1).
- * Комбинации ранжируются по "уровню" (1 — слабейшая, 9 — сильнейшая),
- * строго по нумерации из ТЗ пользователя.
+ * Комбинации ранжируются стандартно для покера (уровень 1 — слабейшая, 9 — сильнейшая):
+ *  1 Старшая карта · 2 Пара · 3 Две пары · 4 Сет · 5 Стрит ·
+ *  6 Флеш · 7 Фулл-хаус · 8 Каре · 9 Стрит-флеш (роял-флеш — его вершина).
+ *
+ * Математика та же, что в engine.js (версия «Дуэли лжи»): когда полный перебор
+ * умещается в возможности браузера — считаем все допустимые расклады точно,
+ * иначе честно помеченную статистическую оценку с 95% доверительным интервалом.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.WeplayEngine = factory();
+  else root.PokerEngine = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
   // --- Справочники -----------------------------------------------------------
-  const COLORS = [
-    { id: 0, name: 'Синий',      short: 'С', css: '#3b82f6', tint: 'rgba(59,130,246,0.18)' },
-    { id: 1, name: 'Красный',    short: 'К', css: '#ef4444', tint: 'rgba(239,68,68,0.18)' },
-    { id: 2, name: 'Жёлтый',     short: 'Ж', css: '#eab308', tint: 'rgba(234,179,8,0.18)' },
-    { id: 3, name: 'Фиолетовый', short: 'Ф', css: '#a855f7', tint: 'rgba(168,85,247,0.18)' },
+  const SUITS = [
+    { id: 0, name: 'Пики',     glyph: '♠', color: 'black' },
+    { id: 1, name: 'Червы',    glyph: '♥', color: 'red' },
+    { id: 2, name: 'Бубны',    glyph: '♦', color: 'red' },
+    { id: 3, name: 'Крести',   glyph: '♣', color: 'black' },
   ];
 
-  // Уровень = сила комбинации (чем выше, тем сильнее), строго по ТЗ.
+  // Ранг 2..14 (14 = туз). Названия для интерфейса.
+  const RANK_NAMES = {
+    2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10',
+    11: 'В', 12: 'Д', 13: 'К', 14: 'Т',
+  };
+  const RANK_FULL = {
+    2: 'двойка', 3: 'тройка', 4: 'четвёрка', 5: 'пятёрка', 6: 'шестёрка',
+    7: 'семёрка', 8: 'восьмёрка', 9: 'девятка', 10: 'десятка',
+    11: 'валет', 12: 'дама', 13: 'король', 14: 'туз',
+  };
+
+  // Уровень = сила комбинации (чем выше, тем сильнее), стандартный покерный порядок.
   const LEVEL_NAMES = {
-    1: 'Барашек',     // старшая карта
-    2: 'Кабан',       // одна пара
-    3: 'Волк',        // две пары
-    4: 'Буревестник', // три карты одного числа (сет)
-    5: 'Морал',       // 5 последовательных карт (стрит)
-    6: 'Носорог',     // три + пара (фулл-хаус)
-    7: 'Медведь',     // 5 карт одного цвета (флеш)
-    8: 'Титан',       // 4 одинаковые (каре)
-    9: 'Дракон',      // 5 последовательных одного цвета (стрит-флеш)
+    1: 'Старшая карта',
+    2: 'Пара',
+    3: 'Две пары',
+    4: 'Сет (тройка)',
+    5: 'Стрит',
+    6: 'Флеш',
+    7: 'Фулл-хаус',
+    8: 'Каре',
+    9: 'Стрит-флеш',
   };
 
   const LEVEL_DESC = {
-    1: 'Старшая карта — нет комбинаций',
-    2: 'Одна пара',
+    1: 'Нет комбинаций — решает старшая карта',
+    2: 'Две карты одного ранга',
     3: 'Две пары',
-    4: 'Три карты одного числа',
-    5: 'Пять последовательных карт (любые цвета)',
-    6: 'Тройка + пара',
-    7: 'Пять карт одного цвета',
-    8: 'Четыре одинаковые карты',
-    9: 'Пять последовательных карт одного цвета',
+    4: 'Три карты одного ранга',
+    5: 'Пять последовательных карт (А-2-3-4-5 — младший стрит)',
+    6: 'Пять карт одной масти',
+    7: 'Тройка + пара',
+    8: 'Четыре карты одного ранга',
+    9: 'Пять последовательных карт одной масти; А-К-Д-В-10 — роял-флеш',
   };
 
   // --- Базовые утилиты -------------------------------------------------------
   function buildDeck() {
     const d = [];
-    for (let c = 0; c < 4; c++) for (let v = 1; v <= 9; v++) d.push({ c, v });
+    for (let s = 0; s < 4; s++) for (let r = 2; r <= 14; r++) d.push({ s, r });
     return d;
   }
 
-  // Уникальный ключ карты (цвет*10 + значение), чтобы быстро сравнивать/исключать.
-  function cardKey(card) { return card.c * 10 + card.v; }
+  // Уникальный ключ карты (масть*100 + ранг), чтобы быстро сравнивать/исключать.
+  function cardKey(card) { return card.s * 100 + card.r; }
 
   function cardLabel(card) {
-    return (COLORS[card.c] ? COLORS[card.c].short : '?') + card.v;
+    return (SUITS[card.s] ? SUITS[card.s].glyph : '?') + (RANK_NAMES[card.r] || card.r);
   }
 
   function shuffle(arr, rng) {
@@ -639,210 +661,210 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     return 0;
   }
 
+  // Старший стрит по битовой маске рангов. Возвращает старшую карту стрита
+  // или 0. А-2-3-4-5 («колесо») считается младшим стритом со старшей пятёркой.
+  function straightHigh(mask) {
+    for (let high = 14; high >= 6; high--) {
+      let ok = true;
+      for (let r = high - 4; r <= high; r++) {
+        if ((mask & (1 << r)) === 0) { ok = false; break; }
+      }
+      if (ok) return high;
+    }
+    // Колесо: биты 2,3,4,5 + туз (14) как младший.
+    if ((mask & (1 << 14)) && (mask & 0b111100) === 0b111100) return 5;
+    return 0;
+  }
+
   // --- Оценка ровно 5 карт ---------------------------------------------------
   // Возвращает { level, name, score:[level, ...тайбрейк], cards }.
   function evaluate5(cards) {
-    const values = cards.map(x => x.v);
-    const asc = values.slice().sort((a, b) => a - b);      // по возрастанию
-    const desc = values.slice().sort((a, b) => b - a);     // по убыванию
-
-    const colorCounts = {};
-    const valueCounts = {};
+    const rankCounts = {};
+    const suitCounts = {};
     cards.forEach(x => {
-      colorCounts[x.c] = (colorCounts[x.c] || 0) + 1;
-      valueCounts[x.v] = (valueCounts[x.v] || 0) + 1;
+      rankCounts[x.r] = (rankCounts[x.r] || 0) + 1;
+      suitCounts[x.s] = (suitCounts[x.s] || 0) + 1;
     });
 
-    const isFlush = Object.keys(colorCounts).some(c => colorCounts[c] === 5);
-    const uniq = [...new Set(asc)];
-    const isStraight = uniq.length === 5 && (uniq[4] - uniq[0] === 4);
+    const isFlush = Object.keys(suitCounts).some(s => suitCounts[s] === 5);
+    let mask = 0;
+    Object.keys(rankCounts).forEach(r => { mask |= (1 << Number(r)); });
+    const straight = straightHigh(mask);
 
-    // Группируем по значениям: сначала по количеству, потом по старшинству.
-    const groups = Object.keys(valueCounts)
-      .map(v => ({ v: +v, n: valueCounts[v] }))
-      .sort((a, b) => (b.n - a.n) || (b.v - a.v));
+    // Группируем по рангам: сначала по количеству, потом по старшинству.
+    const groups = Object.keys(rankCounts)
+      .map(r => ({ r: +r, n: rankCounts[r] }))
+      .sort((a, b) => (b.n - a.n) || (b.r - a.r));
 
     let quad = null, trip = null, pairs = [];
     groups.forEach(g => {
-      if (g.n === 4) quad = g.v;
-      else if (g.n === 3) trip = g.v;
-      else if (g.n === 2) pairs.push(g.v);
+      if (g.n === 4) quad = g.r;
+      else if (g.n === 3) trip = g.r;
+      else if (g.n === 2) pairs.push(g.r);
     });
     pairs.sort((a, b) => b - a);
-    const singles = groups.filter(g => g.n === 1).map(g => g.v).sort((a, b) => b - a);
+    const singles = groups.filter(g => g.n === 1).map(g => g.r).sort((a, b) => b - a);
+    const desc = cards.map(x => x.r).sort((a, b) => b - a);
 
     let level, score;
 
-    if (isFlush && isStraight) {
-      level = 9;                                  // Дракон — стрит-флеш
-      score = [9, uniq[4]];
+    if (isFlush && straight) {
+      level = 9;                                  // Стрит-флеш (роял при старшей A)
+      score = [9, straight];
     } else if (quad !== null) {
-      level = 8;                                  // Титан — каре
+      level = 8;                                  // Каре
       score = [8, quad, singles[0]];
     } else if (trip !== null && pairs.length >= 1) {
-      level = 6;                                  // Носорог — фулл-хаус
-      score = [6, trip, pairs[0]];
+      level = 7;                                  // Фулл-хаус
+      score = [7, trip, pairs[0]];
     } else if (isFlush) {
-      level = 7;                                  // Медведь — флеш
-      score = [7, ...desc];
-    } else if (isStraight) {
-      level = 5;                                  // Морал — стрит
-      score = [5, uniq[4]];
+      level = 6;                                  // Флеш
+      score = [6, ...desc];
+    } else if (straight) {
+      level = 5;                                  // Стрит
+      score = [5, straight];
     } else if (trip !== null) {
-      level = 4;                                  // Буревестник — сет
+      level = 4;                                  // Сет
       score = [4, trip, ...singles];
     } else if (pairs.length === 2) {
-      level = 3;                                  // Волк — две пары
+      level = 3;                                  // Две пары
       score = [3, pairs[0], pairs[1], singles[0]];
     } else if (pairs.length === 1) {
-      level = 2;                                  // Кабан — пара
+      level = 2;                                  // Пара
       score = [2, pairs[0], ...singles];
     } else {
-      level = 1;                                  // Барашек — старшая
+      level = 1;                                  // Старшая карта
       score = [1, ...desc];
     }
 
     return { level, name: LEVEL_NAMES[level], score, cards: cards.slice() };
   }
 
-  // --- Быстрый счёт для 5..7 карт -----------------------------------------
+  // --- Быстрый счёт для 5..7 карт ------------------------------------------
   // В точном расчёте важен только массив score, а не сами пять карт. Полный
-  // перебор 21 пятёрки в bestHand() удобен для интерфейса, но слишком дорог для точного
-  // расчёта всех раскладов. Эта функция получает тот же score за один проход.
+  // перебор 21 пятёрки в bestHand() удобен для интерфейса, но слишком дорог
+  // для точного расчёта всех раскладов. Эта функция получает тот же score
+  // за один проход.
   function scoreHand(cards) {
     if (!cards || cards.length < 5) return bestHandAny(cards || []).score;
 
-    const rankCounts = new Array(10).fill(0);
+    const rankCounts = new Array(15).fill(0);       // индексы 2..14
     const suitMasks = [0, 0, 0, 0];
     const suitCounts = [0, 0, 0, 0];
     for (const card of cards) {
-      rankCounts[card.v]++;
-      suitCounts[card.c]++;
-      suitMasks[card.c] |= (1 << card.v);
+      rankCounts[card.r]++;
+      suitCounts[card.s]++;
+      suitMasks[card.s] |= (1 << card.r);
     }
 
-    function straightHigh(mask) {
-      for (let high = 9; high >= 5; high--) {
-        let ok = true;
-        for (let v = high - 4; v <= high; v++) {
-          if ((mask & (1 << v)) === 0) { ok = false; break; }
-        }
-        if (ok) return high;
-      }
-      return 0;
-    }
-
-    let rankMask = 0;
-    for (let v = 1; v <= 9; v++) if (rankCounts[v]) rankMask |= (1 << v);
-
-    // Дракон: высший стрит в каждом цвете.
+    // Стрит-флеш: высший стрит в каждой масти (там, где 5+ карт одной масти).
     let straightFlushHigh = 0;
-    for (let c = 0; c < 4; c++) {
-      if (suitCounts[c] >= 5) straightFlushHigh = Math.max(straightFlushHigh, straightHigh(suitMasks[c]));
+    for (let s = 0; s < 4; s++) {
+      if (suitCounts[s] >= 5) straightFlushHigh = Math.max(straightFlushHigh, straightHigh(suitMasks[s]));
     }
     if (straightFlushHigh) return [9, straightFlushHigh];
 
     let quad = 0;
-    for (let v = 9; v >= 1; v--) if (rankCounts[v] === 4) { quad = v; break; }
+    for (let r = 14; r >= 2; r--) if (rankCounts[r] === 4) { quad = r; break; }
     if (quad) {
-      for (let v = 9; v >= 1; v--) if (v !== quad && rankCounts[v]) return [8, quad, v];
+      for (let r = 14; r >= 2; r--) if (r !== quad && rankCounts[r]) return [8, quad, r];
     }
 
-    // В этом наборе правил Медведь (флеш, 7) старше Носорога (фулл-хаус, 6).
-    for (let c = 0; c < 4; c++) {
-      if (suitCounts[c] >= 5) {
-        const values = [];
-        for (let v = 9; v >= 1 && values.length < 5; v--) if (suitMasks[c] & (1 << v)) values.push(v);
-        return [7].concat(values);
-      }
-    }
-
+    // Фулл-хаус: высшая тройка + лучшая пара (вторая тройка тоже годится).
     let trip = 0, pairForFull = 0;
-    for (let v = 9; v >= 1; v--) if (rankCounts[v] >= 3) { trip = v; break; }
+    for (let r = 14; r >= 2; r--) if (rankCounts[r] >= 3) { trip = r; break; }
     if (trip) {
-      for (let v = 9; v >= 1; v--) {
-        if (v !== trip && rankCounts[v] >= 2) { pairForFull = v; break; }
+      for (let r = 14; r >= 2; r--) {
+        if (r !== trip && rankCounts[r] >= 2) { pairForFull = r; break; }
       }
     }
-    if (trip && pairForFull) return [6, trip, pairForFull];
+    if (trip && pairForFull) return [7, trip, pairForFull];
 
-    const straight = straightHigh(rankMask);
+    // Флеш: пять старших карт масти (порядок: флеш младше фулл-хауса — стандарт).
+    for (let s = 0; s < 4; s++) {
+      if (suitCounts[s] >= 5) {
+        const values = [];
+        for (let r = 14; r >= 2 && values.length < 5; r--) if (suitMasks[s] & (1 << r)) values.push(r);
+        return [6].concat(values);
+      }
+    }
+
+    const straight = straightHigh(suitMasks[0] | suitMasks[1] | suitMasks[2] | suitMasks[3]);
     if (straight) return [5, straight];
 
     if (trip) {
       const kickers = [];
-      for (let v = 9; v >= 1 && kickers.length < 2; v--) if (v !== trip && rankCounts[v]) kickers.push(v);
+      for (let r = 14; r >= 2 && kickers.length < 2; r--) if (r !== trip && rankCounts[r]) kickers.push(r);
       return [4, trip].concat(kickers);
     }
 
     const pairs = [];
-    for (let v = 9; v >= 1; v--) if (rankCounts[v] >= 2) pairs.push(v);
+    for (let r = 14; r >= 2; r--) if (rankCounts[r] >= 2) pairs.push(r);
     if (pairs.length >= 2) {
-      for (let v = 9; v >= 1; v--) if (v !== pairs[0] && v !== pairs[1] && rankCounts[v]) return [3, pairs[0], pairs[1], v];
+      for (let r = 14; r >= 2; r--) if (r !== pairs[0] && r !== pairs[1] && rankCounts[r]) return [3, pairs[0], pairs[1], r];
     }
     if (pairs.length === 1) {
       const kickers = [];
-      for (let v = 9; v >= 1 && kickers.length < 3; v--) if (v !== pairs[0] && rankCounts[v]) kickers.push(v);
+      for (let r = 14; r >= 2 && kickers.length < 3; r--) if (r !== pairs[0] && rankCounts[r]) kickers.push(r);
       return [2, pairs[0]].concat(kickers);
     }
 
     const highs = [];
-    for (let v = 9; v >= 1 && highs.length < 5; v--) if (rankCounts[v]) highs.push(v);
+    for (let r = 14; r >= 2 && highs.length < 5; r--) if (rankCounts[r]) highs.push(r);
     return [1].concat(highs);
   }
 
-  // --- Оценка для <5 карт (префлоп / неполный борд) -----------------------
-  // Нужна чтобы показать Барашка/Кабана сразу после выбора 1-2 карманных.
+  // --- Оценка для <5 карт (префлоп / неполный борд) ------------------------
+  // Нужна чтобы показать пару/сет/старшую сразу после выбора 1-2 карманных.
   // Для <5 стрит/флеш невозможны, остаются только сет/пары/старшая.
   function evaluatePartial(cards) {
     const n = cards ? cards.length : 0;
     if (!n) return { level: 0, name: '—', score: [0], cards: [], desc: '' };
     if (n === 1) {
-      return { level: 1, name: LEVEL_NAMES[1], score: [1, cards[0].v], cards: cards.slice(), desc: LEVEL_DESC[1] };
+      return { level: 1, name: LEVEL_NAMES[1], score: [1, cards[0].r], cards: cards.slice(), desc: LEVEL_DESC[1] };
     }
-    const valueCounts = {};
-    cards.forEach(function(c){ valueCounts[c.v] = (valueCounts[c.v] || 0) + 1; });
-    const groups = Object.keys(valueCounts).map(function(v){ return { v: +v, n: valueCounts[v] }; })
-      .sort(function(a,b){ return (b.n - a.n) || (b.v - a.v); });
+    const rankCounts = {};
+    cards.forEach(c => { rankCounts[c.r] = (rankCounts[c.r] || 0) + 1; });
+    const groups = Object.keys(rankCounts).map(r => ({ r: +r, n: rankCounts[r] }))
+      .sort((a, b) => (b.n - a.n) || (b.r - a.r));
     let quad = null, trip = null, pairs = [];
-    groups.forEach(function(g){
-      if (g.n === 4) quad = g.v;
-      else if (g.n === 3) trip = g.v;
-      else if (g.n === 2) pairs.push(g.v);
+    groups.forEach(g => {
+      if (g.n === 4) quad = g.r;
+      else if (g.n === 3) trip = g.r;
+      else if (g.n === 2) pairs.push(g.r);
     });
-    pairs.sort(function(a,b){ return b - a; });
-    const singles = groups.filter(function(g){ return g.n === 1; }).map(function(g){ return g.v; }).sort(function(a,b){ return b - a; });
-    const descVals = cards.map(function(c){ return c.v; }).sort(function(a,b){ return b - a; });
-    const sortedCards = cards.slice().sort(function(a,b){ return b.v - a.v; });
+    pairs.sort((a, b) => b - a);
+    const singles = groups.filter(g => g.n === 1).map(g => g.r).sort((a, b) => b - a);
+    const descVals = cards.map(c => c.r).sort((a, b) => b - a);
+    const sortedCards = cards.slice().sort((a, b) => b.r - a.r);
     let level, score, bestCards;
     if (quad !== null) {
       level = 8;
       score = [8, quad].concat(singles);
-      bestCards = cards.filter(function(c){ return c.v === quad; }).concat(sortedCards.filter(function(c){ return c.v !== quad; }));
+      bestCards = cards.filter(c => c.r === quad).concat(sortedCards.filter(c => c.r !== quad));
     } else if (trip !== null) {
       level = 4;
       score = [4, trip].concat(singles);
-      bestCards = cards.filter(function(c){ return c.v === trip; }).concat(sortedCards.filter(function(c){ return c.v !== trip; }));
+      bestCards = cards.filter(c => c.r === trip).concat(sortedCards.filter(c => c.r !== trip));
     } else if (pairs.length >= 2) {
       level = 3;
       score = [3, pairs[0], pairs[1]].concat(singles);
       bestCards = [];
-      pairs.forEach(function(pv){ cards.filter(function(c){ return c.v === pv; }).forEach(function(c){ bestCards.push(c); }); });
-      sortedCards.filter(function(c){ return pairs.indexOf(c.v) === -1; }).forEach(function(c){ bestCards.push(c); });
+      pairs.forEach(pv => cards.filter(c => c.r === pv).forEach(c => bestCards.push(c)));
+      sortedCards.filter(c => pairs.indexOf(c.r) === -1).forEach(c => bestCards.push(c));
     } else if (pairs.length === 1) {
       level = 2;
       score = [2, pairs[0]].concat(singles);
-      bestCards = cards.filter(function(c){ return c.v === pairs[0]; }).concat(sortedCards.filter(function(c){ return c.v !== pairs[0]; }));
+      bestCards = cards.filter(c => c.r === pairs[0]).concat(sortedCards.filter(c => c.r !== pairs[0]));
     } else {
       level = 1;
       score = [1].concat(descVals);
       bestCards = sortedCards;
     }
-    return { level: level, name: LEVEL_NAMES[level], score: score, cards: bestCards, desc: LEVEL_DESC[level] };
+    return { level, name: LEVEL_NAMES[level], score, cards: bestCards, desc: LEVEL_DESC[level] };
   }
 
-  // Универсальная лучшая рука для любого количества карт (1..7)
-  // Для >=5 использует полный перебор по 5, для <5 — evaluatePartial
+  // Универсальная лучшая рука для любого количества карт (1..7).
   function bestHandAny(cards) {
     if (!cards || !cards.length) return { level: 0, name: '—', score: [0], cards: [], desc: '' };
     if (cards.length >= 5) return bestHand(cards);
@@ -850,7 +872,6 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   }
 
   // --- Лучшая 5-ка из 5..7 карт ---------------------------------------------
-  // Возвращает лучший evaluate5 среди всех сочетаний по 5.
   function bestHand(cards) {
     if (!cards || cards.length < 5) {
       return { level: 0, name: '—', score: [0], cards: cards ? cards.slice() : [],
@@ -867,9 +888,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   }
 
   // --- Точный расчёт всех допустимых раскладов ------------------------------
-  // Мы не делаем случайную выборку: для каждой возможной будущей доски считаем
-  // все совместимые пары соперников. Вместо перебора триллионов перестановок
-  // используем счёт непересекающихся пар по их отношению к руке героя.
+  // Для каждой возможной будущей доски считаем все совместимые пары
+  // соперников, агрегируя по типу пары. Так же, как в engine.js.
   const EXACT_MAX_SCORE_EVALS = 2500000;
   const EXACT_MAX_MATCH_WORK = 80000000;
 
@@ -883,31 +903,38 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
   // Оценка объёма полного перебора. totalDeals — реальное число раздач;
   // workUnits — число агрегированных операций после оптимизации пар рук.
+  // Полный перебор реализован для 1–3 соперников; при большем числе игроков
+  // раскладов так много, что честный ответ даёт только статистическая оценка.
   function estimateExact(opts) {
     opts = opts || {};
     const community = opts.community || [];
     const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
     const knownCommunity = community.length;
-    if (knownCommunity < 0 || knownCommunity > 5 || opponents < 1 || opponents > 3) {
+    if (knownCommunity < 0 || knownCommunity > 5 || opponents < 1 || opponents > 9) {
       return { supported: false, totalDeals: 0, scoreEvals: 0, matchWork: 0 };
     }
-    const unknownBeforeBoard = 34 - knownCommunity; // 36 - 2 карты героя - общие
+    const unknownBeforeBoard = 50 - knownCommunity; // 52 - 2 карты героя - общие
     const boardToDraw = 5 - knownCommunity;
     const boardWays = choose(unknownBeforeBoard, boardToDraw);
-    let cardsAfterBoard = unknownBeforeBoard - boardToDraw; // всегда 29
+    let cardsAfterBoard = unknownBeforeBoard - boardToDraw; // всегда 45
     let handsWays = 1;
     for (let i = 0; i < opponents; i++) {
       handsWays *= choose(cardsAfterBoard, 2);
       cardsAfterBoard -= 2;
     }
-    const pairsPerBoard = choose(29, 2);
-    // Для 2 соперников второй счёт рук агрегируется по первой паре; для 3
-    // нужно рассмотреть совместимые первые две пары и агрегировать третью.
-    const matchWorkPerBoard = opponents === 3 ? pairsPerBoard * choose(27, 2) : pairsPerBoard;
-    const scoreEvals = boardWays * pairsPerBoard;
-    const matchWork = boardWays * matchWorkPerBoard;
+    let supported = opponents <= 3;
+    let scoreEvals = 0, matchWork = 0;
+    if (supported) {
+      const pairsPerBoard = choose(45, 2);
+      // Для 2 соперников второй счёт рук агрегируется по первой паре; для 3
+      // нужно рассмотреть совместимые первые две пары и агрегировать третью.
+      const matchWorkPerBoard = opponents === 3 ? pairsPerBoard * choose(43, 2) : pairsPerBoard;
+      scoreEvals = boardWays * pairsPerBoard;
+      matchWork = boardWays * matchWorkPerBoard;
+      supported = scoreEvals <= EXACT_MAX_SCORE_EVALS && matchWork <= EXACT_MAX_MATCH_WORK;
+    }
     return {
-      supported: scoreEvals <= EXACT_MAX_SCORE_EVALS && matchWork <= EXACT_MAX_MATCH_WORK,
+      supported,
       totalDeals: boardWays * handsWays,
       boardWays,
       scoreEvals,
@@ -937,7 +964,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   }
 
   // Считает результаты для одной полностью открытой доски. В remaining всегда
-  // 29 карт; тип пары: 0 — слабее героя, 1 — равна герою, 2 — сильнее героя.
+  // 45 карт; тип пары: 0 — слабее героя, 1 — равна герою, 2 — сильнее героя.
   function countFinalBoard(heroScore, remaining, opponents, board) {
     const n = remaining.length;
     const pairTypes = Array.from({ length: n }, () => new Int8Array(n));
@@ -983,7 +1010,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       }
     } else {
       // Три соперника: фиксируем две непересекающиеся пары, а третью считаем
-      // по степеням графа. Это заменяет 42 751 800 сравнений на ~142 506.
+      // по степеням графа.
       for (const first of pairs) {
         const a = first[0], b = first[1], type1 = first[2];
         for (const second of pairs) {
@@ -1027,8 +1054,6 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   }
 
   // Перебирает все будущие общие карты и все совместимые руки 1–3 соперников.
-  // Если расчёт физически слишком велик для браузера, он честно сообщает об
-  // этом, а не подменяет ответ случайными 15 000 итерациями.
   function simulateExact(opts) {
     opts = opts || {};
     const heroHole = opts.heroHole || [];
@@ -1036,7 +1061,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const opponents = Number.isInteger(opts.numOpponents) ? opts.numOpponents : 1;
     if (!heroHole || heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
     if (!community || community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
-    if (opponents < 1 || opponents > 3) throw new Error('Точный расчёт доступен для 1–3 соперников');
+    if (opponents < 1 || opponents > 9) throw new Error('Расчёт доступен для 1–9 соперников');
 
     const usedCards = heroHole.concat(community);
     const used = new Set(usedCards.map(cardKey));
@@ -1114,7 +1139,6 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   // --- Быстрая оценка для ранней стадии -------------------------------------
   // До флопа полное пространство раздач слишком велико. Вместо отсутствующего
   // ответа используем честную случайную выборку и возвращаем её погрешность.
-  // После флопа интерфейс по-прежнему предпочитает полный точный перебор.
   function simulateEstimate(opts) {
     opts = opts || {};
     const heroHole = opts.heroHole || [];
@@ -1124,7 +1148,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
     if (heroHole.length !== 2) throw new Error('У героя должно быть ровно 2 карты');
     if (community.length > 5) throw new Error('На столе должно быть от 0 до 5 карт');
-    if (opponents < 1 || opponents > 3) throw new Error('Оценка доступна для 1–3 соперников');
+    if (opponents < 1 || opponents > 9) throw new Error('Оценка доступна для 1–9 соперников');
     if (samples < 1000) throw new Error('Для оценки нужно минимум 1 000 раздач');
 
     const usedCards = heroHole.concat(community);
@@ -1162,8 +1186,6 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       equitySum += equity;
       equitySquares += equity * equity;
       levelHist[heroScore[0]] = (levelHist[heroScore[0]] || 0) + 1;
-      // Возвращать pool в исходный порядок не нужно: частичный Fisher–Yates
-      // остаётся равномерным при любом исходном порядке массива.
     }
     const winChance = equitySum / samples;
     const variance = Math.max(0, equitySquares / samples - winChance * winChance);
@@ -1201,7 +1223,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   }
 
   return {
-    COLORS, LEVEL_NAMES, LEVEL_DESC,
+    SUITS, RANK_NAMES, RANK_FULL, LEVEL_NAMES, LEVEL_DESC,
     buildDeck, cardKey, cardLabel, shuffle, combinations, compareScore,
     evaluate5, evaluatePartial, scoreHand, bestHand, bestHandAny, estimateExact, simulateExact, simulateEstimate, analyzeCall, recommend,
   };
@@ -1209,7 +1231,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 </script>
 <script>
-/* app.js — современный интерфейс помощника WeplayCard (живой скоринг) */
+/* poker-app.js — интерфейс помощника покера (живой скоринг), по образцу app.js */
 (function () {
   'use strict';
 
@@ -1217,14 +1239,14 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   function showErr(msg) {
     const b = document.getElementById('errBanner');
     if (b) { b.hidden = false; b.textContent = '⚠ Ошибка интерфейса: ' + msg; }
-    console.error('[WeplayCard]', msg);
+    console.error('[Poker]', msg);
   }
   window.addEventListener('error', (e) => showErr(e.message + (e.filename ? ' @ ' + e.filename + ':' + e.lineno : '')));
   window.addEventListener('unhandledrejection', (e) => showErr('Promise: ' + ((e.reason && e.reason.message) || e.reason)));
 
   try {
-    const E = window.WeplayEngine;
-    if (!E) throw new Error('движок engine.js не загрузился');
+    const E = window.PokerEngine;
+    if (!E) throw new Error('движок poker-engine.js не загрузился');
 
     const $ = (id) => document.getElementById(id);
     // Безопасный аналог addEventListener: не падает, если элемент не найден
@@ -1241,24 +1263,26 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     function pcardEl(card, asButton) {
       const el = asButton ? document.createElement('button') : document.createElement('div');
       el.className = 'pcard' + (asButton ? ' card-cell' : '');
-      el.style.setProperty('--c', E.COLORS[card.c].css);
-      el.title = E.COLORS[card.c].name + ' ' + card.v;
+      const suit = E.SUITS[card.s];
+      const red = suit.color === 'red';
+      el.classList.add(red ? 'is-red' : 'is-black');
+      el.title = suit.name + ', ' + (E.RANK_FULL[card.r] || card.r);
       el.innerHTML =
-        '<span class="corner"><span class="pip"></span>' + card.v + '</span>' +
-        '<span class="center">' + card.v + '</span>' +
-        '<span class="corner br"><span class="pip"></span>' + card.v + '</span>';
+        '<span class="corner"><span class="pip poker-suit">' + suit.glyph + '</span>' + (E.RANK_NAMES[card.r] || card.r) + '</span>' +
+        '<span class="center">' + suit.glyph + '</span>' +
+        '<span class="corner br"><span class="pip poker-suit">' + suit.glyph + '</span>' + (E.RANK_NAMES[card.r] || card.r) + '</span>';
       return el;
     }
 
-    // --- Сетка колоды --------------------------------------------------------
+    // --- Сетка колоды (13 рангов × 4 масти) -----------------------------------
     function renderGrid() {
       const grid = $('cardGrid');
       grid.innerHTML = '';
       const heroKeys = new Set(state.hero.map(E.cardKey));
       const tableKeys = new Set(state.table.map(E.cardKey));
-      for (let c = 0; c < 4; c++) {
-        for (let v = 1; v <= 9; v++) {
-          const card = { c, v };
+      for (let s = 0; s < 4; s++) {
+        for (let r = 2; r <= 14; r++) {
+          const card = { s, r };
           const cell = pcardEl(card, true);
           if (heroKeys.has(E.cardKey(card))) cell.classList.add('hero');
           if (tableKeys.has(E.cardKey(card))) cell.classList.add('table');
@@ -1352,7 +1376,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       }
 
       const all = state.hero.concat(state.table);
-      // Универсальная оценка: для <5 карт показываем Барашка/Кабана и т.п.
+      // Универсальная оценка: для <5 карт показываем старшую/пару и т.п.
       let best;
       if (typeof E.bestHandAny === 'function') best = E.bestHandAny(all);
       else if (all.length >= 5) best = E.bestHand(all);
@@ -1370,7 +1394,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       const lvl = document.createElement('span'); lvl.className = 'cn-level'; lvl.textContent = 'ур. ' + best.level;
 
       // Шанс победить — вероятность стать единственным победителем. При
-      // полностью равных комбинациях игра выбирает победителя удачей, поэтому
+      // полностью равных комбинациях побеждает один из равных (удача), поэтому
       // этому исходу даётся 1/N шанса, а не показывается несуществующий делёж.
       const eqEl = document.createElement('span'); eqEl.className = 'cn-equity';
       if (state.hero.length < 2) {
@@ -1386,7 +1410,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
         if (lastExact) {
           const exact = document.createElement('span'); exact.className = 'cn-freq muted';
           exact.textContent = ' · точно';
-          exact.title = 'Полный перебор всех ' + lastExactDeals.toLocaleString('ru') + ' вариантов закрытых карт соперников, включая пары 5+6.';
+          exact.title = 'Полный перебор всех ' + lastExactDeals.toLocaleString('ru') + ' вариантов закрытых карт соперников.';
           eqEl.appendChild(exact);
         } else if (lastConfidence95 != null) {
           const estimate = document.createElement('span'); estimate.className = 'cn-freq muted';
@@ -1549,7 +1573,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
     function updateRecommendation(winChance) {
       const input = callInputs();
-      // recommend(шанс_победить, сумма_колла, банк); раньше аргументы были переставлены.
+      // recommend(шанс_победить, сумма_колла, банк).
       const rec = E.recommend(winChance,
         input.bet != null ? input.bet : undefined,
         input.pot != null ? input.pot : undefined);
@@ -1621,8 +1645,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
       } catch (err) {
         if (myGen !== runGen) return;
         if (err && err.code === 'EXACT_TOO_LARGE' && typeof E.simulateEstimate === 'function') {
-          // Префлоп и ранние улицы слишком велики для полного перебора. Вместо
-          // пустого результата даём явно помеченную оценку с погрешностью.
+          // Префлоп и слишком большие пространства. Вместо пустого результата
+          // даём явно помеченную оценку с погрешностью.
           await new Promise(res => setTimeout(res, 0));
           if (myGen !== runGen) return;
           const estimate = E.simulateEstimate({
