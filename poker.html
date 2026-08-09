@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WeplayCard — Помощник дуэли лжи</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <title>WeplayCard — Помощник покера</title>
   <link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body>
@@ -25,7 +24,7 @@
         <div class="combo-caption">Частота твоей финальной комбинации (не вероятность победы)</div>
         <div class="combo-list" id="rulesBody"></div>
         <div class="sidebar-note">
-          Колода: 4 цвета × 1…9 = 36 карт. 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
+          Колода: 52 карты — 4 масти (♠ ♥ ♦ ♣) × 13 рангов (2…A). 2 в руки + 5 общих (3, затем 1, затем 1). Лучшая 5-ка из 7.
         </div>
         <div class="sidebar-note warn">
           ⚠️ Честная математика: блеф и чтение оппонента не учитываются.
@@ -41,12 +40,12 @@
           <div class="logo">♠</div>
           <div class="brand-text">
             <b>WeplayCard</b>
-            <span>Дуэль лжи · помощник за столом</span>
+            <span>Покер · помощник за столом</span>
           </div>
         </div>
         <nav class="nav-tabs" aria-label="Выбор игры">
-          <a class="nav-tab active" href="index.html" aria-current="page">Дуэль лжи</a>
-          <a class="nav-tab" href="poker.html">Покер</a>
+          <a class="nav-tab" href="index.html">Дуэль лжи</a>
+          <a class="nav-tab active" href="poker.html" aria-current="page">Покер</a>
         </nav>
         <div class="top-equity" id="topEquity" title="Шанс стать единственным победителем; при равной комбинации исход решает удача">
           <span class="te-val" id="topVal">—</span>
@@ -161,8 +160,8 @@
 
       <p class="hint" id="modeHint">Кликай карты на колоде, чтобы добавить их в <b>свои</b> (максимум 2).</p>
 
-      <!-- Колода -->
-      <div class="deck" id="cardGrid"></div>
+      <!-- Колода 52 карты: 13 рангов × 4 масти -->
+      <div class="deck deck--poker" id="cardGrid"></div>
 
       <!-- Стол -->
       <section class="table-row">
@@ -174,7 +173,7 @@
     </main>
   </div>
 
-  <script src="engine.js?v=14"></script>
-  <script src="app.js?v=14"></script>
+  <script src="poker-engine.js?v=1"></script>
+  <script src="poker-app.js?v=1"></script>
 </body>
 </html>
